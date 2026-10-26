@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mammoth from 'mammoth';
 
+export const maxDuration = 60;
+
 interface PdfPage {
   text: string;
   pageNumber: number;

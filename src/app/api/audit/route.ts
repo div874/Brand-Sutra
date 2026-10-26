@@ -10,6 +10,8 @@ import {
   analyzeDraftContent 
 } from '@/lib/retrieval-engine';
 
+export const maxDuration = 60;
+
 export interface AuditApiResponse {
   outcome: 'EVALUATED' | 'CLEAN' | 'INSUFFICIENT_EVIDENCE';
   summary: string;
