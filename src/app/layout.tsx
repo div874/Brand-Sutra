@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Brand Sutra — Pre-Publish Brand & Fact Consistency Engine',
-  description: 'Catch brand voice drift, terminology violations, and fact mismatches before content goes live. Human-in-the-loop review powered by Inkloom AI.',
+  title: 'Brand Sutra — Content Pre-Check Dashboard',
+  description: 'A simple way to check brand content before it goes live.',
 };
 
 export default function RootLayout({
@@ -25,14 +25,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
-    >
-      <body className="min-h-full flex flex-col bg-[#090d16] text-slate-100 font-sans selection:bg-indigo-500/30 selection:text-white">
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark`}>
+      <body className="min-h-screen bg-[#0a0a0a] text-[#ededed] font-sans antialiased flex flex-col">
         <AppProvider>
           <Header />
-          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8">
             {children}
           </main>
         </AppProvider>

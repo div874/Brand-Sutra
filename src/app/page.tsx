@@ -4,24 +4,13 @@ import React, { useState } from 'react';
 import { useApp } from '@/lib/store';
 import { StatusBadge } from '@/components/StatusBadge';
 import { FindingCard } from '@/components/FindingCard';
-import { 
-  FileText, 
-  Send, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Sparkles, 
-  MessageSquare, 
-  ArrowRight, 
-  Info, 
-  Check, 
-  ShieldAlert,
-  Clock,
-  User,
-  Plus
-} from 'lucide-react';
+import { Send, CheckCircle2, RotateCcw, Sparkles, Database } from 'lucide-react';
+import { analyzeDraftContent } from '@/lib/retrieval-engine';
+import { isSupabaseConfigured } from '@/lib/supabase';
 
 export default function Home() {
   const {
+    brand,
     drafts,
     currentDraftId,
     currentDraft,
@@ -30,75 +19,58 @@ export default function Home() {
     updateDraftStatus,
     applyFindingFix,
     ignoreFinding,
+    setDraftFindings,
     userRole,
     comments,
     addComment,
+    approvedEdits,
     activeFindingId,
     setActiveFindingId,
-    brand
   } = useApp();
 
-  const [newCommentText, setNewCommentText] = useState('');
-  const [reviewNote, setReviewNote] = useState('');
-  const [showStatusModal, setShowStatusModal] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState('');
 
   if (!currentDraft) {
     return (
-      <div className="text-center py-20 text-slate-400">
-        No draft loaded. Click Reset in the header to load demo content.
+      <div className="text-center py-20 text-[#737373] text-sm">
+        No draft loaded. Click Reset in the top right to load the default template.
       </div>
     );
   }
 
   const activeFindings = currentDraft.findings.filter(f => f.status === 'Pending');
-  const resolvedFindings = currentDraft.findings.filter(f => f.status !== 'Pending');
-
   const draftComments = comments.filter(c => c.draftId === currentDraft.id);
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCommentText.trim()) return;
-    addComment(currentDraft.id, newCommentText.trim());
-    setNewCommentText('');
-  };
-
-  const handleStatusChangeWithNote = (status: 'Approved' | 'Changes Requested') => {
-    updateDraftStatus(currentDraft.id, status, reviewNote.trim() || undefined);
-    setReviewNote('');
-    setShowStatusModal(null);
+    if (!commentText.trim()) return;
+    addComment(currentDraft.id, commentText.trim());
+    setCommentText('');
   };
 
   return (
     <div className="space-y-6">
-      {/* Top Banner / Context Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 rounded-2xl glass-panel">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-950/80 border border-indigo-700/50 flex items-center justify-center shrink-0">
-            <FileText className="w-5 h-5 text-indigo-400" />
+      {/* Basic Dashboard Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#262626]">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-semibold text-white tracking-tight">
+              {currentDraft.title}
+            </h1>
+            <StatusBadge status={currentDraft.reviewStatus} />
           </div>
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-lg font-bold text-white tracking-tight">
-                {currentDraft.title}
-              </h1>
-              <StatusBadge status={currentDraft.reviewStatus} />
-              <span className="text-xs text-slate-400 bg-slate-900/80 px-2.5 py-0.5 rounded-full border border-slate-800">
-                v{currentDraft.version}
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Channel: <span className="text-slate-300 font-medium">{currentDraft.channel}</span> • Target: <span className="text-slate-300 font-medium">{currentDraft.targetAudience}</span> • Author: <span className="text-slate-300 font-medium">{currentDraft.creatorName}</span>
-            </p>
-          </div>
+          <p className="text-xs text-[#8a8a8a] mt-1">
+            Author: {currentDraft.creatorName} • Channel: {currentDraft.channel}
+          </p>
         </div>
 
-        {/* Draft Selector & Workflow Actions */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Switch Draft Dropdown */}
+        {/* Action Controls */}
+        <div className="flex items-center gap-2">
+          {/* Draft switch */}
           <select
             value={currentDraftId}
             onChange={(e) => setCurrentDraftId(e.target.value)}
-            className="text-xs bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:ring-1 focus:ring-indigo-500"
+            className="text-xs bg-[#121212] border border-[#262626] rounded px-2.5 py-1.5 text-[#ededed] focus:border-[#525252]"
           >
             {drafts.map((d) => (
               <option key={d.id} value={d.id}>
@@ -107,263 +79,161 @@ export default function Home() {
             ))}
           </select>
 
-          {/* Workflow Action Buttons depending on role */}
+          {/* Role-based status action */}
           {userRole === 'creator' && currentDraft.reviewStatus !== 'In Review' && currentDraft.reviewStatus !== 'Approved' && (
             <button
+              id="btn-submit-review"
               type="button"
-              onClick={() => updateDraftStatus(currentDraft.id, 'In Review', 'Submitted draft for brand compliance review')}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-sm shadow-indigo-600/30 transition-all"
+              onClick={() => updateDraftStatus(currentDraft.id, 'In Review')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-black bg-white hover:bg-[#d4d4d4] rounded transition-colors"
             >
-              <Send className="w-3.5 h-3.5" />
-              Submit for Review
+              <Send className="w-3 h-3" />
+              Submit
             </button>
           )}
 
           {userRole === 'reviewer' && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
+                id="btn-request-changes"
                 type="button"
-                onClick={() => setShowStatusModal('Changes Requested')}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-rose-300 bg-rose-950/40 hover:bg-rose-900/40 border border-rose-800/60 rounded-lg transition-colors"
+                onClick={() => updateDraftStatus(currentDraft.id, 'Changes Requested')}
+                className="px-2.5 py-1.5 text-xs font-medium text-[#d4d4d4] bg-[#1a1a1a] hover:bg-[#262626] border border-[#333333] rounded transition-colors"
               >
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
                 Request Changes
               </button>
               <button
+                id="btn-approve"
                 type="button"
-                onClick={() => setShowStatusModal('Approved')}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm shadow-emerald-600/30 transition-all"
+                onClick={() => updateDraftStatus(currentDraft.id, 'Approved')}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-black bg-white hover:bg-[#d4d4d4] rounded transition-colors"
               >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Approve Draft
+                <CheckCircle2 className="w-3 h-3" />
+                Approve
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Reviewer Note Modal */}
-      {showStatusModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl glass-panel p-6 border border-slate-700 shadow-2xl">
-            <h3 className="text-base font-bold text-white mb-2">
-              {showStatusModal === 'Approved' ? 'Approve Draft' : 'Request Changes'}
-            </h3>
-            <p className="text-xs text-slate-400 mb-4">
-              {showStatusModal === 'Approved'
-                ? 'Confirm that this draft satisfies all brand guidelines and verified facts. Leave an optional approval note.'
-                : 'Provide actionable feedback for the creator explaining why changes are requested.'}
-            </p>
-            <textarea
-              value={reviewNote}
-              onChange={(e) => setReviewNote(e.target.value)}
-              placeholder="Add your note or review comments..."
-              rows={3}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-500 focus:ring-1 focus:ring-indigo-500 mb-4"
-            />
-            <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowStatusModal(null)}
-                className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStatusChangeWithNote(showStatusModal as 'Approved' | 'Changes Requested')}
-                className={`px-4 py-1.5 text-xs font-semibold text-white rounded-lg transition-all ${
-                  showStatusModal === 'Approved' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-rose-600 hover:bg-rose-500'
-                }`}
-              >
-                Confirm {showStatusModal}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Grid: Left Draft Editor & Right Findings Panel */}
+      {/* Main 2-Column Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Left Column (7 cols): Draft Editor & Comments */}
-        <div className="lg:col-span-7 space-y-6">
-          
-          {/* Editor Card */}
-          <div className="rounded-2xl glass-panel p-5 border border-slate-800">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/80">
+        {/* Left: Text Editor & Notes (7 cols) */}
+        <div className="lg:col-span-7 space-y-4">
+          <div className="rounded-lg bg-[#121212] border border-[#262626] p-4">
+            <div className="flex items-center justify-between mb-2 text-xs text-[#8a8a8a]">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                  Draft Content
-                </span>
-                <span className="text-[11px] text-slate-500">
-                  ({currentDraft.content.length} characters • {currentDraft.content.split(/\s+/).filter(Boolean).length} words)
-                </span>
+                <span className="font-medium text-white">Draft Content</span>
+                <span>•</span>
+                <span>{currentDraft.content.split(/\s+/).filter(Boolean).length} words</span>
               </div>
 
-              {activeFindings.length > 0 ? (
-                <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/40 px-2.5 py-1 rounded-full">
-                  <ShieldAlert className="w-3.5 h-3.5" />
-                  <span>{activeFindings.length} open {activeFindings.length === 1 ? 'issue' : 'issues'}</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2.5 py-1 rounded-full">
-                  <Check className="w-3.5 h-3.5" />
-                  <span>All brand checks passed</span>
-                </div>
-              )}
+              <button
+                id="btn-recheck-draft"
+                type="button"
+                onClick={() => {
+                  const freshFindings = analyzeDraftContent(currentDraft.id, currentDraft.content, brand, approvedEdits);
+                  setDraftFindings(currentDraft.id, freshFindings);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-[#ededed] bg-[#1a1a1a] hover:bg-[#262626] border border-[#333333] rounded transition-colors"
+                title="Evaluate draft against official evidence and retrieve learned precedents"
+              >
+                <Sparkles className="w-3 h-3 text-[#a3a3a3]" />
+                <span>Re-check Rules & Facts</span>
+              </button>
             </div>
 
-            {/* Editable Content Area */}
-            <div className="relative">
-              <textarea
-                value={currentDraft.content}
-                onChange={(e) => updateDraftContent(currentDraft.id, e.target.value)}
-                rows={12}
-                className="w-full bg-slate-950/80 border border-slate-800/80 rounded-xl p-4 text-sm leading-relaxed text-slate-200 placeholder:text-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-sans resize-y"
-                placeholder="Paste or write your marketing draft here..."
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-xs text-slate-400 mt-3 pt-3 border-t border-slate-800/60">
-              <span className="flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-slate-400" />
-                Edits save automatically and re-evaluate findings.
-              </span>
-              <span className="text-[11px] text-slate-500">
-                Last modified: {new Date(currentDraft.updatedAt).toLocaleTimeString()}
-              </span>
-            </div>
+            <textarea
+              id="draft-content-textarea"
+              value={currentDraft.content}
+              onChange={(e) => updateDraftContent(currentDraft.id, e.target.value)}
+              rows={11}
+              className="w-full bg-[#0a0a0a] border border-[#262626] rounded p-3 text-sm leading-relaxed text-[#ededed] placeholder:text-[#525252] focus:border-[#525252] font-mono resize-y"
+              placeholder="Paste or write your draft here..."
+            />
           </div>
 
-          {/* Inline Comments & Feedback Thread */}
-          <div className="rounded-2xl glass-panel p-5 border border-slate-800">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-indigo-400" />
-                <h3 className="text-sm font-bold text-white tracking-tight">
-                  Reviewer Notes & Feedback
-                </h3>
-              </div>
-              <span className="text-xs text-slate-400">
-                {draftComments.length} {draftComments.length === 1 ? 'comment' : 'comments'}
-              </span>
+          {/* Simple Review Notes */}
+          <div className="rounded-lg bg-[#121212] border border-[#262626] p-4">
+            <div className="text-xs font-medium text-white mb-3">
+              Review Notes & Feedback ({draftComments.length})
             </div>
 
-            {/* Comments List */}
-            <div className="space-y-3 mb-4 max-h-64 overflow-y-auto pr-1">
+            <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
               {draftComments.length === 0 ? (
-                <div className="text-center py-6 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
-                  No review comments yet. Reviewers and creators can exchange notes here.
+                <div className="text-xs text-[#737373] py-2">
+                  No review notes yet.
                 </div>
               ) : (
                 draftComments.map((comm) => (
-                  <div
-                    key={comm.id}
-                    className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 text-xs"
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="font-semibold text-slate-200 flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-indigo-400" />
-                        {comm.authorName}
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        {new Date(comm.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                  <div key={comm.id} className="text-xs p-2 rounded bg-[#0a0a0a] border border-[#262626]">
+                    <div className="flex items-center justify-between text-[#8a8a8a] mb-1 text-[11px]">
+                      <span>{comm.authorName}</span>
+                      <span>{new Date(comm.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
-                    <p className="text-slate-300 leading-relaxed pl-5">
-                      {comm.content}
-                    </p>
+                    <p className="text-[#d4d4d4]">{comm.content}</p>
                   </div>
                 ))
               )}
             </div>
 
-            {/* Add Comment Input */}
             <form onSubmit={handleCommentSubmit} className="flex gap-2">
               <input
                 type="text"
-                value={newCommentText}
-                onChange={(e) => setNewCommentText(e.target.value)}
-                placeholder={`Leave a note as ${userRole === 'reviewer' ? 'Brand Reviewer' : 'Creator'}...`}
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:ring-1 focus:ring-indigo-500"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="Write a brief note..."
+                className="flex-1 bg-[#0a0a0a] border border-[#262626] rounded px-3 py-1.5 text-xs text-[#ededed] placeholder:text-[#525252] focus:border-[#525252]"
               />
               <button
                 type="submit"
-                disabled={!newCommentText.trim()}
-                className="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 rounded-xl transition-colors"
+                disabled={!commentText.trim()}
+                className="px-3 py-1.5 text-xs font-medium text-black bg-white hover:bg-[#d4d4d4] disabled:opacity-40 rounded transition-colors"
               >
                 Send
               </button>
             </form>
           </div>
-
         </div>
 
-        {/* Right Column (5 cols): Findings & Rule Citations */}
-        <div className="lg:col-span-5 space-y-4">
-          
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-400" />
-                Findings & Rule Matches
-              </h2>
-              <p className="text-xs text-slate-400">
-                Actionable checks linked to {brand.name} guidelines
-              </p>
-            </div>
-            <span className="text-xs font-semibold text-slate-300 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
-              {activeFindings.length} active
+        {/* Right: Findings Stack (5 cols) */}
+        <div className="lg:col-span-5 space-y-3">
+          <div className="flex items-center justify-between pb-1">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-[#a3a3a3]">
+              Detected Issues
+            </h2>
+            <span className="text-xs text-[#737373]">
+              {activeFindings.length} open
             </span>
           </div>
 
-          {/* Active Findings Stack */}
-          <div className="space-y-3">
-            {activeFindings.length === 0 ? (
-              <div className="p-8 text-center rounded-2xl glass-panel border border-emerald-800/40 bg-emerald-950/10">
-                <div className="w-12 h-12 rounded-full bg-emerald-900/30 border border-emerald-700/40 flex items-center justify-center mx-auto mb-3">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                </div>
-                <h4 className="text-sm font-bold text-white mb-1">
-                  Ready for Review!
-                </h4>
-                <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                  No active brand violations or fact conflicts detected in this draft.
-                </p>
-              </div>
-            ) : (
-              activeFindings.map((finding) => (
+          {activeFindings.length === 0 ? (
+            <div className="rounded-lg bg-[#121212] border border-[#262626] p-6 text-center text-xs text-[#8a8a8a]">
+              No open brand issues. Content is clean.
+            </div>
+          ) : (
+            activeFindings.map((finding) => {
+              const matchingPrecedent = approvedEdits.find(e => 
+                e.originalText.toLowerCase().trim() === finding.quote.toLowerCase().trim() ||
+                e.findingId === finding.id ||
+                finding.quote.toLowerCase().includes(e.originalText.toLowerCase()) ||
+                e.originalText.toLowerCase().includes(finding.quote.toLowerCase())
+              );
+
+              return (
                 <FindingCard
                   key={finding.id}
                   finding={finding}
                   isActive={activeFindingId === finding.id}
+                  historicalPrecedent={matchingPrecedent}
                   onSelect={() => setActiveFindingId(finding.id)}
                   onAccept={() => applyFindingFix(currentDraft.id, finding.id)}
                   onIgnore={() => ignoreFinding(currentDraft.id, finding.id)}
                 />
-              ))
-            )}
-          </div>
-
-          {/* Resolved Findings Toggle / History */}
-          {resolvedFindings.length > 0 && (
-            <div className="pt-2">
-              <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
-                <span>Resolved Issues ({resolvedFindings.length})</span>
-              </div>
-              <div className="space-y-2">
-                {resolvedFindings.map((finding) => (
-                  <FindingCard
-                    key={finding.id}
-                    finding={finding}
-                    isActive={false}
-                  />
-                ))}
-              </div>
-            </div>
+              );
+            })
           )}
-
         </div>
 
       </div>

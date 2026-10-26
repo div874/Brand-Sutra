@@ -1,145 +1,130 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useApp } from '@/lib/store';
-import { 
-  Sparkles, 
-  ShieldCheck, 
-  BookOpen, 
-  History, 
-  RotateCcw, 
-  User, 
-  CheckCircle2, 
-  Feather
-} from 'lucide-react';
+import { RotateCcw, Database } from 'lucide-react';
+import { SupabaseModal } from './SupabaseModal';
 
 export function Header() {
   const pathname = usePathname();
-  const { brand, userRole, setUserRole, resetToDefaults } = useApp();
+  const { userRole, setUserRole, resetToDefaults, supabaseStatus } = useApp();
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 glass-panel border-b border-slate-800/80">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <header className="border-b border-[#262626] bg-[#0c0c0c]">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         
-        {/* Brand Sutra Logo & Subtitle */}
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 p-0.5 shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                <Feather className="w-4 h-4 text-indigo-400" />
-              </div>
+        {/* Brand Title */}
+        <div className="flex items-center gap-6">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded bg-white text-black font-bold text-xs flex items-center justify-center">
+              B
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-base tracking-tight text-white group-hover:text-indigo-300 transition-colors">
-                  Brand Sutra
-                </span>
-                <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Round 1 • Plan
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 font-medium">Inkloom AI</p>
+            <div className="flex items-baseline gap-2">
+              <span className="font-semibold text-sm text-white tracking-tight">
+                Brand Sutra
+              </span>
+              <span className="text-xs text-[#737373]">Inkloom AI</span>
             </div>
           </Link>
 
-          {/* Active Brand Badge */}
-          <div className="hidden md:flex items-center gap-2 ml-4 pl-4 border-l border-slate-800 text-xs">
-            <span className="text-slate-400">Active Brand:</span>
-            <span className="font-semibold text-slate-200 bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">
-              {brand.name}
-            </span>
-          </div>
+          {/* Nav Links */}
+          <nav className="flex items-center gap-1">
+            <Link
+              href="/"
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                pathname === '/'
+                  ? 'bg-[#262626] text-white'
+                  : 'text-[#8a8a8a] hover:text-white hover:bg-[#171717]'
+              }`}
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/rules"
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                pathname === '/rules'
+                  ? 'bg-[#262626] text-white'
+                  : 'text-[#8a8a8a] hover:text-white hover:bg-[#171717]'
+              }`}
+            >
+              Rules & Facts
+            </Link>
+          </nav>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav className="flex items-center gap-1 sm:gap-2">
-          <Link
-            href="/"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-              pathname === '/'
-                ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Editor & Checks</span>
-          </Link>
-
-          <Link
-            href="/rules"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-              pathname === '/rules'
-                ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            <span>Brand Rules</span>
-          </Link>
-
-          <Link
-            href="/audit"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-              pathname === '/audit'
-                ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <History className="w-4 h-4" />
-            <span className="hidden sm:inline">Audit Log</span>
-          </Link>
-        </nav>
-
-        {/* Right Section: Role Switcher & Controls */}
+        {/* Right Actions */}
         <div className="flex items-center gap-2.5">
-          {/* Role Switcher Pill */}
-          <div className="flex items-center p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+          {/* Supabase Status Pill */}
+          <button
+            id="btn-open-supabase-modal"
+            type="button"
+            onClick={() => setIsSupabaseModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs bg-[#141414] hover:bg-[#1f1f1f] border border-[#262626] transition-colors"
+            title="Supabase Cloud Connection & Schema Deployment"
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                supabaseStatus.tablesReady
+                  ? 'bg-emerald-400'
+                  : supabaseStatus.connected
+                  ? 'bg-amber-400'
+                  : 'bg-rose-400'
+              }`}
+            />
+            <span className="text-[#a3a3a3] text-[11px] font-mono">
+              {supabaseStatus.tablesReady ? 'Supabase: Synced' : supabaseStatus.connected ? 'Supabase: Setup' : 'Supabase'}
+            </span>
+          </button>
+
+          {/* Simple Role Toggle */}
+          <div className="flex items-center bg-[#171717] border border-[#262626] rounded p-0.5 text-xs">
             <button
+              id="btn-role-creator"
               type="button"
               onClick={() => setUserRole('creator')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-medium transition-all ${
+              className={`px-2.5 py-1 rounded transition-colors ${
                 userRole === 'creator'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-[#ededed] text-black font-medium'
+                  : 'text-[#8a8a8a] hover:text-white'
               }`}
-              title="Creator mode: edit draft and accept suggestions"
             >
-              <User className="w-3.5 h-3.5" />
-              <span>Creator</span>
+              Creator
             </button>
             <button
+              id="btn-role-reviewer"
               type="button"
               onClick={() => setUserRole('reviewer')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-medium transition-all ${
+              className={`px-2.5 py-1 rounded transition-colors ${
                 userRole === 'reviewer'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-[#ededed] text-black font-medium'
+                  : 'text-[#8a8a8a] hover:text-white'
               }`}
-              title="Reviewer mode: approve or request changes with comments"
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Reviewer</span>
+              Reviewer
             </button>
           </div>
 
-          {/* Reset Demo button */}
+          {/* Reset Button */}
           <button
+            id="btn-reset-defaults"
             type="button"
-            onClick={() => {
-              if (confirm('Reset to initial demo draft and brand rules?')) {
-                resetToDefaults();
-              }
-            }}
-            title="Reset demo data"
-            className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors"
+            onClick={() => resetToDefaults()}
+            title="Reset to default template"
+            className="p-1.5 text-[#737373] hover:text-white hover:bg-[#1f1f1f] rounded transition-colors"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
 
       </div>
+
+      <SupabaseModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => setIsSupabaseModalOpen(false)}
+      />
     </header>
   );
 }

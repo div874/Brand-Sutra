@@ -16,6 +16,8 @@ export interface ToneGuideline {
   description: string;
   doExample: string;
   dontExample: string;
+  sourceDoc?: string;
+  pageNumber?: number;
 }
 
 export interface ProhibitedTerm {
@@ -24,6 +26,8 @@ export interface ProhibitedTerm {
   reason: string;
   suggestedAlternative: string;
   severity: IssueSeverity;
+  sourceDoc?: string;
+  pageNumber?: number;
 }
 
 export interface ApprovedTerm {
@@ -31,6 +35,8 @@ export interface ApprovedTerm {
   term: string;
   preferredUsage: string;
   category?: string;
+  sourceDoc?: string;
+  pageNumber?: number;
 }
 
 export interface TrustedFact {
@@ -41,6 +47,8 @@ export interface TrustedFact {
   sourceUrl?: string;
   verifiedDate: string;
   notes?: string;
+  sourceDoc?: string;
+  pageNumber?: number;
 }
 
 export interface BrandProfile {
@@ -75,6 +83,7 @@ export interface Finding {
   status: FindingStatus;
   detectedBy: 'deterministic' | 'ai';
   category?: string;
+  evidenceType?: 'official_rule' | 'official_fact' | 'unverified_claim';
   createdAt: string;
 }
 
@@ -124,3 +133,22 @@ export interface DraftComment {
   timestamp: string;
   resolved: boolean;
 }
+
+/**
+ * Approved Edits Schema (Historical Review Decisions)
+ */
+export interface ApprovedEdit {
+  id: string;
+  draftId: string;
+  findingId?: string;
+  originalText: string;
+  approvedChange: string;
+  reason: string;
+  relatedRuleOrFact?: string;
+  approvedBy: string;
+  approvedByRole: UserRole;
+  approvedAt: string;
+  category?: IssueType;
+  usageCount?: number;
+}
+

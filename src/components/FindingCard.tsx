@@ -1,11 +1,12 @@
 import React from 'react';
-import { Finding } from '@/types';
+import { Finding, ApprovedEdit } from '@/types';
 import { IssueBadge } from './IssueBadge';
-import { Check, X, BookmarkCheck, AlertTriangle, ArrowRight, Sparkles } from 'lucide-react';
+import { Check, X, History } from 'lucide-react';
 
 interface FindingCardProps {
   finding: Finding;
   isActive?: boolean;
+  historicalPrecedent?: ApprovedEdit;
   onSelect?: () => void;
   onAccept?: () => void;
   onIgnore?: () => void;
@@ -14,6 +15,7 @@ interface FindingCardProps {
 export function FindingCard({
   finding,
   isActive = false,
+  historicalPrecedent,
   onSelect,
   onAccept,
   onIgnore
@@ -23,107 +25,100 @@ export function FindingCard({
   return (
     <div
       onClick={onSelect}
-      className={`relative rounded-xl p-4 transition-all duration-200 border cursor-pointer ${
+      className={`rounded-lg p-4 border transition-colors cursor-pointer ${
         isResolved
-          ? 'bg-slate-900/40 border-slate-800/80 opacity-60'
+          ? 'bg-[#121212] border-[#1f1f1f] opacity-50'
           : isActive
-          ? 'bg-slate-800/90 border-indigo-500 shadow-lg shadow-indigo-500/10 ring-1 ring-indigo-500'
-          : 'glass-card hover:border-slate-700'
+          ? 'bg-[#171717] border-[#525252]'
+          : 'bg-[#121212] border-[#262626] hover:border-[#383838]'
       }`}
     >
-      {/* Top Header: Badge, Source Status, and Detection tag */}
-      <div className="flex items-center justify-between gap-2 mb-3">
+      {/* Top Header */}
+      <div className="flex items-center justify-between gap-2 mb-2.5">
         <IssueBadge type={finding.issueType} severity={finding.severity} />
         
-        <div className="flex items-center gap-1.5 text-xs text-slate-400">
-          {finding.detectedBy === 'ai' ? (
-            <span className="flex items-center gap-1 text-[11px] bg-indigo-950/60 text-indigo-300 border border-indigo-800/60 px-2 py-0.5 rounded-full">
-              <Sparkles className="w-3 h-3 text-indigo-400" /> AI Review
-            </span>
-          ) : (
-            <span className="text-[11px] bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded-full">
-              Rule Check
-            </span>
-          )}
-
-          {isResolved && (
-            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-              finding.status === 'Accepted'
-                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
-                : 'bg-slate-800 text-slate-400 border border-slate-700'
-            }`}>
-              {finding.status}
-            </span>
-          )}
-        </div>
+        <span className="text-[11px] text-[#8a8a8a]">
+          {isResolved ? finding.status : finding.detectedBy === 'ai' ? 'AI Check' : 'Rule Check'}
+        </span>
       </div>
 
-      {/* Flagged Snippet Quote */}
-      <div className="mb-3 p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/80">
-        <div className="text-[11px] uppercase tracking-wider font-semibold text-rose-400/90 mb-1 flex items-center gap-1.5">
-          <AlertTriangle className="w-3.5 h-3.5" />
-          Flagged in draft:
-        </div>
-        <p className="text-sm font-medium text-slate-200 italic">
+      {/* Flagged Text */}
+      <div className="mb-2.5 p-2 rounded bg-[#0a0a0a] border border-[#262626]">
+        <div className="text-[11px] text-[#8a8a8a] mb-0.5">Flagged text:</div>
+        <p className="text-xs text-[#ededed] font-mono">
           &ldquo;{finding.quote}&rdquo;
         </p>
       </div>
 
-      {/* Explanation ("Why it matters") */}
-      <div className="mb-3">
-        <h4 className="text-xs font-semibold text-slate-300 mb-1">Why this matters:</h4>
-        <p className="text-xs text-slate-400 leading-relaxed">
-          {finding.explanation}
-        </p>
-      </div>
+      {/* Explanation */}
+      <p className="text-xs text-[#a3a3a3] mb-2 leading-relaxed">
+        {finding.explanation}
+      </p>
 
-      {/* Approved Source Citation OR Verification Notice */}
+      {/* Official Evidence Citation */}
       {finding.sourceLink && (
-        <div className="mb-3.5 flex items-start gap-2 p-2 rounded-lg bg-indigo-950/30 border border-indigo-900/40 text-xs text-indigo-200">
-          <BookmarkCheck className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-semibold text-indigo-300">Approved Reference: </span>
-            <span className="text-indigo-200/90">{finding.sourceLink}</span>
-          </div>
+        <div className="text-[11px] text-[#737373] mb-3 p-2 rounded bg-[#0e0e0e] border border-[#222]">
+          <span className="text-white font-medium">Official Evidence: </span> 
+          <span className="text-[#a3a3a3]">{finding.sourceLink}</span>
         </div>
       )}
 
-      {/* Suggested Surgical Correction */}
-      {finding.suggestedFix && !isResolved && (
-        <div className="mb-4 p-3 rounded-lg bg-emerald-950/20 border border-emerald-900/40">
-          <div className="text-[11px] uppercase tracking-wider font-semibold text-emerald-400 mb-1.5 flex items-center gap-1.5">
-            <ArrowRight className="w-3.5 h-3.5" />
-            Suggested edit:
+      {/* Historical Precedent (Kept strictly isolated from official rules) */}
+      {historicalPrecedent && !isResolved && (
+        <div className="mb-3 p-2.5 rounded bg-[#151515] border border-[#2a2a2a] text-[11px] space-y-1">
+          <div className="flex items-center justify-between text-[#8a8a8a]">
+            <span className="flex items-center gap-1.5 font-medium text-white">
+              <History className="w-3.5 h-3.5 text-[#a3a3a3]" />
+              Historical Precedent
+            </span>
+            <span className="text-[10px] text-[#737373] bg-[#0a0a0a] px-1.5 py-0.5 rounded border border-[#222]">
+              Non-Rule Context
+            </span>
           </div>
-          <p className="text-sm font-medium text-emerald-200">
+          <p className="text-[#a3a3a3] leading-relaxed">
+            Approved by {historicalPrecedent.approvedBy}: <span className="text-white font-mono font-medium">&ldquo;{historicalPrecedent.approvedChange}&rdquo;</span>
+          </p>
+          <p className="text-[10px] text-[#525252] italic">
+            *Historical correction surfaced for reviewer context; not a permanent brand rule.
+          </p>
+        </div>
+      )}
+
+      {/* Suggested Fix */}
+      {finding.suggestedFix && !isResolved && (
+        <div className="mb-3 p-2 rounded bg-[#171717] border border-[#333333]">
+          <div className="text-[11px] text-[#8a8a8a] mb-0.5">Suggested replacement:</div>
+          <p className="text-xs text-white font-medium">
             &ldquo;{finding.suggestedFix}&rdquo;
           </p>
         </div>
       )}
 
-      {/* Action Buttons: Accept / Ignore */}
+      {/* Action Controls */}
       {!isResolved && (
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#1f1f1f]">
           <button
+            id={`btn-ignore-${finding.id}`}
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onIgnore?.();
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1 text-xs text-[#8a8a8a] hover:text-white rounded transition-colors"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3 h-3" />
             Ignore
           </button>
           <button
+            id={`btn-apply-fix-${finding.id}`}
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onAccept?.();
             }}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-sm shadow-indigo-600/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-black bg-white hover:bg-[#d4d4d4] rounded transition-colors"
           >
-            <Check className="w-3.5 h-3.5" />
+            <Check className="w-3 h-3" />
             Apply Edit
           </button>
         </div>

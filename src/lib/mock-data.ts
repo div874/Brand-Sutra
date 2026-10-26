@@ -1,4 +1,4 @@
-import { BrandProfile, Draft, AuditLogEntry, DraftComment } from '@/types';
+import { BrandProfile, Draft, AuditLogEntry, DraftComment, ApprovedEdit } from '@/types';
 
 export const INITIAL_BRAND_PROFILE: BrandProfile = {
   id: 'brand-ecosutra',
@@ -298,5 +298,22 @@ export const INITIAL_COMMENTS: DraftComment[] = [
     content: 'Aarav, please review the recycled plastic ratio and battery benchmark before we publish this to the newsletter list.',
     timestamp: '2026-10-25T15:50:00.000Z',
     resolved: false
+  }
+];
+
+export const INITIAL_APPROVED_EDITS: ApprovedEdit[] = [
+  {
+    id: 'approved-edit-1',
+    draftId: 'draft-demo-1',
+    findingId: 'find-1',
+    originalText: 'Made entirely from recycled plastic.',
+    approvedChange: 'Made with 80% recycled plastic.',
+    reason: 'The original claim overstated the verified recycled content.',
+    relatedRuleOrFact: 'Global Recycled Standard Audit #GRS-2025-081',
+    approvedBy: 'Divyansh Chandra (Brand Lead)',
+    approvedByRole: 'reviewer',
+    approvedAt: '2026-10-25T16:00:00.000Z',
+    category: 'Fact Conflict',
+    usageCount: 2
   }
 ];
