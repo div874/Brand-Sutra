@@ -27,13 +27,106 @@ export default function RulesPage() {
 
   // Ingestion Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [ingestMode, setIngestMode] = useState<'file' | 'text'>('file');
+  const [ingestMode, setIngestMode] = useState<'form' | 'file' | 'text'>('form');
   const [pastedText, setPastedText] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [importStatusMessage, setImportStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [ocrWarning, setOcrWarning] = useState<string | null>(null);
+
+  // Manual Direct Rule Form State
+  const [manualType, setManualType] = useState<'prohibited' | 'fact' | 'approved'>('prohibited');
+  const [manualTerm, setManualTerm] = useState('');
+  const [manualSeverity, setManualSeverity] = useState<'high' | 'medium' | 'low'>('high');
+  const [manualCategory, setManualCategory] = useState('Compliance');
+  const [manualReason, setManualReason] = useState('');
+  const [manualAlternative, setManualAlternative] = useState('');
+
+  const [manualClaim, setManualClaim] = useState('');
+  const [manualTopic, setManualTopic] = useState('');
+  const [manualSource, setManualSource] = useState('');
+  const [manualVerifiedDate, setManualVerifiedDate] = useState('');
+  const [manualSourceUrl, setManualSourceUrl] = useState('');
+  const [manualSourceDoc, setManualSourceDoc] = useState('');
+
+  const [manualApprovedTerm, setManualApprovedTerm] = useState('');
+  const [manualApprovedContext, setManualApprovedContext] = useState('');
+
+  const handleDirectSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    if (manualType === 'prohibited') {
+      const term = manualTerm.trim();
+      if (!term) {
+        setErrorMessage('Prohibited term / phrase is required.');
+        return;
+      }
+      const newRule: ProhibitedTerm = {
+        id: `term-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        term,
+        severity: manualSeverity,
+        reason: manualReason.trim() || 'Prohibited by brand policy.',
+        suggestedAlternative: manualAlternative.trim() || 'Do not use this phrase.',
+        sourceDoc: manualCategory.trim() ? `Category: ${manualCategory.trim()}` : undefined
+      };
+      importRules({ prohibitedTerms: [newRule] });
+      setImportStatusMessage(`Rule "${term}" successfully added to ${brand.name} knowledge base.`);
+      setManualTerm('');
+      setManualReason('');
+      setManualAlternative('');
+      setIsModalOpen(false);
+    } else if (manualType === 'fact') {
+      const claim = manualClaim.trim();
+      const source = manualSource.trim();
+      if (!claim) {
+        setErrorMessage('Claim or statistic is required.');
+        return;
+      }
+      if (!source) {
+        setErrorMessage('Official source citation is required.');
+        return;
+      }
+      const newFact: TrustedFact = {
+        id: `fact-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        topic: manualTopic.trim() || 'General',
+        claimOrStat: claim,
+        source,
+        sourceUrl: manualSourceUrl.trim() || undefined,
+        sourceDoc: manualSourceDoc.trim() || undefined,
+        verifiedDate: manualVerifiedDate || new Date().toISOString().split('T')[0]
+      };
+      importRules({ trustedFacts: [newFact] });
+      setImportStatusMessage(`Trusted fact "${claim.substring(0, 40)}..." successfully added to ${brand.name} knowledge base.`);
+      setManualClaim('');
+      setManualTopic('');
+      setManualSource('');
+      setManualSourceUrl('');
+      setManualSourceDoc('');
+      setIsModalOpen(false);
+    } else if (manualType === 'approved') {
+      const term = manualApprovedTerm.trim();
+      if (!term) {
+        setErrorMessage('Approved term is required.');
+        return;
+      }
+      const newApproved: ApprovedTerm = {
+        id: `appr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        term,
+        preferredUsage: manualApprovedContext.trim() || 'Approved brand terminology'
+      };
+      importRules({ approvedTerms: [newApproved] });
+      setImportStatusMessage(`Approved term "${term}" successfully added to ${brand.name} knowledge base.`);
+      setManualApprovedTerm('');
+      setManualApprovedContext('');
+      setIsModalOpen(false);
+    }
+
+    setTimeout(() => {
+      setImportStatusMessage(null);
+    }, 4500);
+  };
 
   // Extracted preview state (fully editable before import)
   const [extractedFacts, setExtractedFacts] = useState<TrustedFact[]>([]);
@@ -560,12 +653,24 @@ export default function RulesPage() {
 
             {/* Ingestion Mode Switcher */}
             {!hasExtractedPreview && (
-              <div className="flex items-center gap-2 border-b border-[#262626] pb-3 text-xs">
+              <div className="flex items-center gap-2 border-b border-[#262626] pb-3 text-xs overflow-x-auto">
+                <button
+                  id="btn-mode-form"
+                  type="button"
+                  onClick={() => { setIngestMode('form'); setHasExtractedPreview(false); setOcrWarning(null); setErrorMessage(null); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors whitespace-nowrap ${
+                    ingestMode === 'form' ? 'bg-[#262626] text-white font-medium' : 'text-[#8a8a8a] hover:text-white'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Direct Form Input
+                </button>
+
                 <button
                   id="btn-mode-file"
                   type="button"
-                  onClick={() => { setIngestMode('file'); setHasExtractedPreview(false); setOcrWarning(null); }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors ${
+                  onClick={() => { setIngestMode('file'); setHasExtractedPreview(false); setOcrWarning(null); setErrorMessage(null); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors whitespace-nowrap ${
                     ingestMode === 'file' ? 'bg-[#262626] text-white font-medium' : 'text-[#8a8a8a] hover:text-white'
                   }`}
                 >
@@ -576,8 +681,8 @@ export default function RulesPage() {
                 <button
                   id="btn-mode-text"
                   type="button"
-                  onClick={() => { setIngestMode('text'); setHasExtractedPreview(false); setOcrWarning(null); }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors ${
+                  onClick={() => { setIngestMode('text'); setHasExtractedPreview(false); setOcrWarning(null); setErrorMessage(null); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors whitespace-nowrap ${
                     ingestMode === 'text' ? 'bg-[#262626] text-white font-medium' : 'text-[#8a8a8a] hover:text-white'
                   }`}
                 >
@@ -609,6 +714,270 @@ export default function RulesPage() {
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMessage}</span>
               </div>
+            )}
+
+            {/* Direct Form Input Mode */}
+            {ingestMode === 'form' && !hasExtractedPreview && (
+              <form onSubmit={handleDirectSubmit} className="space-y-4">
+                {/* Rule Type Sub-tabs */}
+                <div className="flex items-center gap-1.5 p-1 bg-[#0a0a0a] border border-[#262626] rounded-lg text-xs w-fit">
+                  <button
+                    id="btn-subtab-prohibited"
+                    type="button"
+                    onClick={() => { setManualType('prohibited'); setErrorMessage(null); }}
+                    className={`px-3 py-1 rounded transition-colors ${
+                      manualType === 'prohibited' ? 'bg-[#262626] text-white font-medium' : 'text-[#8a8a8a] hover:text-white'
+                    }`}
+                  >
+                    Prohibited Term / Rule
+                  </button>
+                  <button
+                    id="btn-subtab-fact"
+                    type="button"
+                    onClick={() => { setManualType('fact'); setErrorMessage(null); }}
+                    className={`px-3 py-1 rounded transition-colors ${
+                      manualType === 'fact' ? 'bg-[#262626] text-white font-medium' : 'text-[#8a8a8a] hover:text-white'
+                    }`}
+                  >
+                    Trusted Fact / Evidence
+                  </button>
+                  <button
+                    id="btn-subtab-approved"
+                    type="button"
+                    onClick={() => { setManualType('approved'); setErrorMessage(null); }}
+                    className={`px-3 py-1 rounded transition-colors ${
+                      manualType === 'approved' ? 'bg-[#262626] text-white font-medium' : 'text-[#8a8a8a] hover:text-white'
+                    }`}
+                  >
+                    Approved Term
+                  </button>
+                </div>
+
+                {/* Prohibited Term Form */}
+                {manualType === 'prohibited' && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                          Prohibited Term or Claim <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          id="manual-rule-term"
+                          value={manualTerm}
+                          onChange={(e) => setManualTerm(e.target.value)}
+                          placeholder='e.g., "100% green", "completely safe"'
+                          className="w-full bg-[#0a0a0a] border border-[#262626] rounded px-3 py-2 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                            Severity Level
+                          </label>
+                          <select
+                            id="manual-rule-severity"
+                            value={manualSeverity}
+                            onChange={(e) => setManualSeverity(e.target.value as 'high' | 'medium' | 'low')}
+                            className="w-full bg-[#0a0a0a] border border-[#262626] rounded px-2.5 py-2 text-xs text-white focus:border-[#525252] outline-none"
+                          >
+                            <option value="high">High (Strict Reject)</option>
+                            <option value="medium">Medium (Caution)</option>
+                            <option value="low">Low (Advisory)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                            Category
+                          </label>
+                          <input
+                            type="text"
+                            id="manual-rule-category"
+                            value={manualCategory}
+                            onChange={(e) => setManualCategory(e.target.value)}
+                            placeholder="e.g. Compliance"
+                            className="w-full bg-[#0a0a0a] border border-[#262626] rounded px-3 py-2 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                        Policy Reason / Grounding Explanation
+                      </label>
+                      <textarea
+                        rows={2}
+                        id="manual-rule-reason"
+                        value={manualReason}
+                        onChange={(e) => setManualReason(e.target.value)}
+                        placeholder="Explain why this claim or term is disallowed under brand guidelines..."
+                        className="w-full bg-[#0a0a0a] border border-[#262626] rounded p-2.5 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                        Approved Alternative / Suggested Replacement
+                      </label>
+                      <input
+                        type="text"
+                        id="manual-rule-alternative"
+                        value={manualAlternative}
+                        onChange={(e) => setManualAlternative(e.target.value)}
+                        placeholder='e.g., "responsibly engineered", "tested to IPX8"'
+                        className="w-full bg-[#0a0a0a] border border-[#262626] rounded px-3 py-2 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Trusted Fact Form */}
+                {manualType === 'fact' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                        Verified Claim or Statistic <span className="text-rose-400">*</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        id="manual-fact-claim"
+                        value={manualClaim}
+                        onChange={(e) => setManualClaim(e.target.value)}
+                        placeholder='e.g., "Battery delivers up to 28 hours on standard playback tests."'
+                        className="w-full bg-[#0a0a0a] border border-[#262626] rounded p-2.5 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                          Topic
+                        </label>
+                        <input
+                          type="text"
+                          id="manual-fact-topic"
+                          value={manualTopic}
+                          onChange={(e) => setManualTopic(e.target.value)}
+                          placeholder="e.g. Battery Life"
+                          className="w-full bg-[#0a0a0a] border border-[#262626] rounded px-3 py-2 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                          Official Source Citation <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          id="manual-fact-source"
+                          value={manualSource}
+                          onChange={(e) => setManualSource(e.target.value)}
+                          placeholder="e.g. Lab Certificate #902"
+                          className="w-full bg-[#0a0a0a] border border-[#262626] rounded px-3 py-2 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                          Verification Date
+                        </label>
+                        <input
+                          type="date"
+                          id="manual-fact-date"
+                          value={manualVerifiedDate}
+                          onChange={(e) => setManualVerifiedDate(e.target.value)}
+                          className="w-full bg-[#0a0a0a] border border-[#262626] rounded px-3 py-2 text-xs text-white focus:border-[#525252] outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                          Source Document / Report Name (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          id="manual-fact-doc"
+                          value={manualSourceDoc}
+                          onChange={(e) => setManualSourceDoc(e.target.value)}
+                          placeholder="e.g. Q4 Hardware Validation Report"
+                          className="w-full bg-[#0a0a0a] border border-[#262626] rounded px-3 py-2 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                          Source URL / Link (Optional)
+                        </label>
+                        <input
+                          type="url"
+                          id="manual-fact-url"
+                          value={manualSourceUrl}
+                          onChange={(e) => setManualSourceUrl(e.target.value)}
+                          placeholder="https://..."
+                          className="w-full bg-[#0a0a0a] border border-[#262626] rounded px-3 py-2 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Approved Term Form */}
+                {manualType === 'approved' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                        Approved Brand Term / Trademark <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        id="manual-approved-term"
+                        value={manualApprovedTerm}
+                        onChange={(e) => setManualApprovedTerm(e.target.value)}
+                        placeholder='e.g., "HydroSeal™", "PureAcoustics"'
+                        className="w-full bg-[#0a0a0a] border border-[#262626] rounded px-3 py-2 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-[#a3a3a3] mb-1 font-medium">
+                        Usage Context / Guidelines
+                      </label>
+                      <input
+                        type="text"
+                        id="manual-approved-context"
+                        value={manualApprovedContext}
+                        onChange={(e) => setManualApprovedContext(e.target.value)}
+                        placeholder="e.g., Always capitalize and include trademark symbol on first mention"
+                        className="w-full bg-[#0a0a0a] border border-[#262626] rounded px-3 py-2 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Direct Form Submit Buttons */}
+                <div className="flex justify-end gap-2 pt-2 border-t border-[#262626]">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-3 py-1.5 text-xs text-[#8a8a8a] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    id="btn-save-manual-rule"
+                    type="submit"
+                    className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-black bg-white hover:bg-[#d4d4d4] rounded transition-colors"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Save Rule to Brand</span>
+                  </button>
+                </div>
+              </form>
             )}
 
             {/* File Upload Mode */}
@@ -688,8 +1057,8 @@ export default function RulesPage() {
               </div>
             )}
 
-            {/* Process / Extract Button */}
-            {!hasExtractedPreview && (
+            {/* Process / Extract Button (Only for file & raw text modes) */}
+            {!hasExtractedPreview && ingestMode !== 'form' && (
               <div className="flex justify-end gap-2 pt-2 border-t border-[#262626]">
                 <button
                   type="button"
