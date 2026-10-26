@@ -4,19 +4,19 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useApp } from '@/lib/store';
-import { RotateCcw, Database } from 'lucide-react';
+import { RotateCcw, Building2 } from 'lucide-react';
 import { SupabaseModal } from './SupabaseModal';
 
 export function Header() {
   const pathname = usePathname();
-  const { userRole, setUserRole, resetToDefaults, supabaseStatus } = useApp();
+  const { brand, userRole, setUserRole, resetToDefaults, supabaseStatus } = useApp();
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
 
   return (
     <header className="border-b border-[#262626] bg-[#0c0c0c]">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+      <div className="max-w-[1440px] xl:max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
         
-        {/* Brand Title */}
+        {/* Brand Title & Nav */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-6 h-6 rounded bg-white text-black font-bold text-xs flex items-center justify-center">
@@ -26,7 +26,7 @@ export function Header() {
               <span className="font-semibold text-sm text-white tracking-tight">
                 Brand Sutra
               </span>
-              <span className="text-xs text-[#737373]">Inkloom AI</span>
+              <span className="text-xs text-[#737373] hidden sm:inline">Inkloom AI</span>
             </div>
           </Link>
 
@@ -36,6 +36,16 @@ export function Header() {
               href="/"
               className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                 pathname === '/'
+                  ? 'bg-[#262626] text-white'
+                  : 'text-[#8a8a8a] hover:text-white hover:bg-[#171717]'
+              }`}
+            >
+              Brands
+            </Link>
+            <Link
+              href="/dashboard"
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                pathname === '/dashboard'
                   ? 'bg-[#262626] text-white'
                   : 'text-[#8a8a8a] hover:text-white hover:bg-[#171717]'
               }`}
@@ -57,12 +67,24 @@ export function Header() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-2.5">
+          {/* Active Brand Switcher Pill */}
+          <Link
+            href="/"
+            id="header-brand-pill"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs bg-[#171717] hover:bg-[#222222] border border-[#2a2a2a] transition-colors"
+            title="Active Brand Workspace. Click to switch brand."
+          >
+            <Building2 className="w-3 h-3 text-[#737373]" />
+            <span className="font-medium text-white max-w-[120px] truncate">{brand.name}</span>
+            <span className="text-[10px] text-[#737373] font-mono">⇄</span>
+          </Link>
+
           {/* Supabase Status Pill */}
           <button
             id="btn-open-supabase-modal"
             type="button"
             onClick={() => setIsSupabaseModalOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs bg-[#141414] hover:bg-[#1f1f1f] border border-[#262626] transition-colors"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded text-xs bg-[#141414] hover:bg-[#1f1f1f] border border-[#262626] transition-colors"
             title="Supabase Cloud Connection & Schema Deployment"
           >
             <span

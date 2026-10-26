@@ -1,9 +1,9 @@
-import { BrandProfile, Draft, AuditLogEntry, DraftComment, ApprovedEdit } from '@/types';
+import type { BrandProfile, Draft, AuditLogEntry, DraftComment, ApprovedEdit } from '@/types';
 
 export const INITIAL_BRAND_PROFILE: BrandProfile = {
   id: 'brand-ecosutra',
-  name: 'EcoSutra Wearables',
-  tagline: 'Sustainable everyday audio & wearables designed with radical honesty',
+  name: 'EchoStream',
+  tagline: 'Consistent brands. Confident content.',
   description: 'A direct-to-consumer sustainable electronics brand creating premium, repairable audio gear and accessories.',
   voiceSummary: 'Honest, grounded, knowledgeable, and inviting. We never exaggerate environmental claims, we cite exact certifications, and we respect our customer’s intelligence.',
   toneGuidelines: [
@@ -61,6 +61,48 @@ export const INITIAL_BRAND_PROFILE: BrandProfile = {
       reason: 'Unsubstantiated legal liability. We offer repairability, not indestructible physics.',
       suggestedAlternative: 'tested for drop resilience up to 2 meters',
       severity: 'high'
+    },
+    {
+      id: 'term-6',
+      term: 'perfect sound',
+      reason: 'Subjective acoustic perfection claim. Describe verified acoustic response or TrueNeutral Sound Stage instead.',
+      suggestedAlternative: 'TrueNeutral balanced audio',
+      severity: 'medium'
+    },
+    {
+      id: 'term-7',
+      term: 'unbeatable battery life',
+      reason: 'Unsubstantiated comparative claim prohibited under advertising standards. Cite lab-tested battery duration.',
+      suggestedAlternative: 'up to 48 hours of tested battery life',
+      severity: 'high'
+    },
+    {
+      id: 'term-8',
+      term: 'risk-free listening',
+      reason: 'Unsubstantiated legal liability guarantee. Cite standard return policy instead.',
+      suggestedAlternative: 'with a 30-day trial period',
+      severity: 'medium'
+    },
+    {
+      id: 'term-9',
+      term: 'completely waterproof',
+      reason: 'Contradicts official lab benchmark: Device is certified IPX4 splash-resistant, not completely waterproof.',
+      suggestedAlternative: 'IPX4 splash-resistant',
+      severity: 'high'
+    },
+    {
+      id: 'term-10',
+      term: '100% sustainable materials',
+      reason: 'Overstates verified material composite. Certified as 80% recycled plastic and 20% virgin structural resin.',
+      suggestedAlternative: '80% certified recycled plastic',
+      severity: 'high'
+    },
+    {
+      id: 'term-11',
+      term: "world's best",
+      reason: 'Absolute superlative lacking audited third-party market benchmarking.',
+      suggestedAlternative: 'premium',
+      severity: 'medium'
     }
   ],
   approvedTerms: [
@@ -159,7 +201,28 @@ Grab yours today and join the green revolution.`,
         suggestedFix: 'crafted with 80% certified post-consumer recycled plastic',
         status: 'Pending',
         detectedBy: 'deterministic',
-        createdAt: '2026-10-25T15:45:00.000Z'
+        createdAt: '2026-10-25T15:45:00.000Z',
+        evidence: [
+          {
+            id: 'cite-fact-primary-fact-1',
+            type: 'fact',
+            title: 'Verified Fact: Recycled Materials',
+            sourceDoc: 'Global Recycled Standard Audit Certificate #GRS-2025-081',
+            pageNumber: 4,
+            verifiedDate: '2025-01-15',
+            snippet: 'Outer casing is made with 80% post-consumer recycled plastic certified under GRS-2025-081.',
+            relevanceScore: 0.99,
+            reasoning: 'Directly contradicts certified engineering composition benchmark.'
+          },
+          {
+            id: 'cite-edit-edit-1',
+            type: 'historical_edit',
+            title: 'Approved Precedent by Divyansh Chandra',
+            snippet: 'Original: "100% recycled plastic housing" → Approved: "80% certified post-consumer recycled plastic housing". Decision Rationale: Corrected exaggeration to match official GRS audit.',
+            relevanceScore: 0.94,
+            reasoning: 'Past reviewer precedent for similar claim wording.'
+          }
+        ]
       },
       {
         id: 'find-2',
@@ -175,7 +238,27 @@ Grab yours today and join the green revolution.`,
         suggestedFix: 'sustainably engineered',
         status: 'Pending',
         detectedBy: 'deterministic',
-        createdAt: '2026-10-25T15:45:00.000Z'
+        createdAt: '2026-10-25T15:45:00.000Z',
+        evidence: [
+          {
+            id: 'cite-rule-term-2',
+            type: 'rule',
+            title: 'Prohibited Term: "eco-friendly"',
+            sourceDoc: 'Brand Voice & Terminology Guide',
+            pageNumber: 3,
+            snippet: 'Forbidden: "eco-friendly". Reason: Too vague and risks greenwashing accusations under EU green claims directive. Suggested replacement: "sustainably engineered".',
+            relevanceScore: 0.98,
+            reasoning: 'Matches brand prohibition against using "eco-friendly".'
+          },
+          {
+            id: 'cite-edit-edit-2',
+            type: 'historical_edit',
+            title: 'Approved Precedent by Divyansh Chandra',
+            snippet: 'Original: "eco-friendly materials" → Approved: "thoughtfully sourced recycled polymers". Decision Rationale: Replaced banned buzzword with verified material attribution.',
+            relevanceScore: 0.92,
+            reasoning: 'Past reviewer precedent for replacing buzzword.'
+          }
+        ]
       },
       {
         id: 'find-3',
@@ -191,7 +274,20 @@ Grab yours today and join the green revolution.`,
         suggestedFix: 'up to 48 hours of tested battery life',
         status: 'Pending',
         detectedBy: 'ai',
-        createdAt: '2026-10-25T15:45:00.000Z'
+        createdAt: '2026-10-25T15:45:00.000Z',
+        evidence: [
+          {
+            id: 'cite-fact-primary-fact-3',
+            type: 'fact',
+            title: 'Verified Fact: Battery Life Benchmark',
+            sourceDoc: 'Hardware Lab Test Protocol v2.4 (IEC 62368-1 benchmark)',
+            pageNumber: 12,
+            verifiedDate: '2025-02-10',
+            snippet: 'Battery provides up to 48 hours of playback with ANC off, and 36 hours with ANC on.',
+            relevanceScore: 0.99,
+            reasoning: 'Directly contradicts certified hardware battery endurance test.'
+          }
+        ]
       },
       {
         id: 'find-4',
@@ -207,7 +303,19 @@ Grab yours today and join the green revolution.`,
         suggestedFix: 'tested for drop resilience up to 2 meters',
         status: 'Pending',
         detectedBy: 'deterministic',
-        createdAt: '2026-10-25T15:45:00.000Z'
+        createdAt: '2026-10-25T15:45:00.000Z',
+        evidence: [
+          {
+            id: 'cite-rule-term-5',
+            type: 'rule',
+            title: 'Prohibited Term: "guaranteed unbreakable"',
+            sourceDoc: 'Brand Voice & Terminology Guide',
+            pageNumber: 6,
+            snippet: 'Forbidden: "guaranteed unbreakable". Reason: Unsubstantiated durability guarantee creates warranty liability. Must cite drop-test metrics. Suggested replacement: "tested for drop resilience up to 2 meters".',
+            relevanceScore: 0.98,
+            reasoning: 'Matches brand prohibition against durability absolutes.'
+          }
+        ]
       },
       {
         id: 'find-5',
@@ -223,7 +331,19 @@ Grab yours today and join the green revolution.`,
         suggestedFix: 'thoughtfully redesigned',
         status: 'Pending',
         detectedBy: 'deterministic',
-        createdAt: '2026-10-25T15:45:00.000Z'
+        createdAt: '2026-10-25T15:45:00.000Z',
+        evidence: [
+          {
+            id: 'cite-tone-term-3',
+            type: 'rule',
+            title: 'Tone Pillar: Grounded & Humble Voice',
+            sourceDoc: 'Brand Editorial Principles',
+            pageNumber: 2,
+            snippet: 'Avoid: "revolutionary, miraculous, game-changing" | Do: "thoughtfully engineered, refined, purposeful"',
+            relevanceScore: 0.94,
+            reasoning: 'Breaches brand voice directive against hyperbolic hype.'
+          }
+        ]
       },
       {
         id: 'find-6',
@@ -238,7 +358,19 @@ Grab yours today and join the green revolution.`,
         suggestedFix: 'designed to minimize environmental footprint',
         status: 'Pending',
         detectedBy: 'ai',
-        createdAt: '2026-10-25T15:45:00.000Z'
+        createdAt: '2026-10-25T15:45:00.000Z',
+        evidence: [
+          {
+            id: 'cite-superlative-policy',
+            type: 'rule',
+            title: 'Advertising Substantiation Policy',
+            sourceDoc: 'Legal & Regulatory Compliance Standards',
+            pageNumber: 3,
+            snippet: 'Absolute superlatives ("best in the world", "most eco-friendly") require independent third-party market audit certification prior to release.',
+            relevanceScore: 0.96,
+            reasoning: 'Regulatory requirement under Advertising governance standards.'
+          }
+        ]
       }
     ]
   },

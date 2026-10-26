@@ -96,10 +96,22 @@ export default function RulesPage() {
       }
 
       if (data.extracted) {
-        setExtractedFacts(data.extracted.trustedFacts || []);
-        setExtractedProhibited(data.extracted.prohibitedTerms || []);
-        setExtractedApproved(data.extracted.approvedTerms || []);
-        setExtractedTone(data.extracted.toneGuidelines || []);
+        const facts = data.extracted.trustedFacts || [];
+        const prohibited = data.extracted.prohibitedTerms || [];
+        const approved = data.extracted.approvedTerms || [];
+        const tone = data.extracted.toneGuidelines || [];
+        const total = facts.length + prohibited.length + approved.length + tone.length;
+
+        if (total === 0) {
+          setErrorMessage('No brand rules, terminology, or verified facts could be identified in this input. Please check the document or paste guidelines directly.');
+          setHasExtractedPreview(false);
+          return;
+        }
+
+        setExtractedFacts(facts);
+        setExtractedProhibited(prohibited);
+        setExtractedApproved(approved);
+        setExtractedTone(tone);
         setHasExtractedPreview(true);
       }
     } catch (err) {
@@ -294,89 +306,133 @@ export default function RulesPage() {
       {/* Tab 1: Facts */}
       {tab === 'facts' && (
         <div className="space-y-3">
-          {brand.trustedFacts.map((fact) => (
-            <div key={fact.id} className="p-4 rounded-lg bg-[#121212] border border-[#262626]">
-              <div className="flex items-center justify-between text-xs text-[#8a8a8a] mb-1.5">
-                <span className="font-medium text-[#ededed]">{fact.topic}</span>
-                <div className="flex items-center gap-2">
-                  {fact.sourceDoc && (
-                    <span className="text-[11px] text-[#737373] bg-[#1a1a1a] px-2 py-0.5 rounded border border-[#262626]">
-                      {fact.sourceDoc} {fact.pageNumber ? `(p.${fact.pageNumber})` : ''}
-                    </span>
-                  )}
-                  <span>Verified: {fact.verifiedDate}</span>
-                </div>
-              </div>
-              <p className="text-sm text-[#ededed] mb-2">{fact.claimOrStat}</p>
-              <div className="text-xs text-[#737373]">Source: {fact.source}</div>
+          {brand.trustedFacts.length === 0 ? (
+            <div className="p-10 rounded-xl bg-[#121212] border border-dashed border-[#262626] text-center space-y-2">
+              <FileText className="w-6 h-6 text-[#737373] mx-auto" />
+              <div className="text-xs font-medium text-white">No trusted facts defined yet for {brand.name}</div>
+              <p className="text-[11px] text-[#737373] max-w-sm mx-auto">
+                Upload a product specification or laboratory certification document above to extract and verify official facts.
+              </p>
             </div>
-          ))}
+          ) : (
+            brand.trustedFacts.map((fact) => (
+              <div key={fact.id} className="p-4 rounded-lg bg-[#121212] border border-[#262626]">
+                <div className="flex items-center justify-between text-xs text-[#8a8a8a] mb-1.5">
+                  <span className="font-medium text-[#ededed]">{fact.topic}</span>
+                  <div className="flex items-center gap-2">
+                    {fact.sourceDoc && (
+                      <span className="text-[11px] text-[#737373] bg-[#1a1a1a] px-2 py-0.5 rounded border border-[#262626]">
+                        {fact.sourceDoc} {fact.pageNumber ? `(p.${fact.pageNumber})` : ''}
+                      </span>
+                    )}
+                    <span>Verified: {fact.verifiedDate}</span>
+                  </div>
+                </div>
+                <p className="text-sm text-[#ededed] mb-2">{fact.claimOrStat}</p>
+                <div className="text-xs text-[#737373]">Source: {fact.source}</div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
       {/* Tab 2: Terms */}
       {tab === 'terms' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-[#a3a3a3]">
-              Prohibited Terms
-            </h2>
-            {brand.prohibitedTerms.map((term) => (
-              <div key={term.id} className="p-3 rounded-lg bg-[#121212] border border-[#262626] text-xs">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-white line-through">&ldquo;{term.term}&rdquo;</span>
-                  {term.sourceDoc && (
-                    <span className="text-[10px] text-[#737373]">
-                      {term.sourceDoc} {term.pageNumber ? `p.${term.pageNumber}` : ''}
-                    </span>
-                  )}
-                </div>
-                <div className="text-[#8a8a8a] mb-1.5">{term.reason}</div>
-                <div className="text-[#ededed]">Use instead: &ldquo;{term.suggestedAlternative}&rdquo;</div>
+        <div>
+          {brand.prohibitedTerms.length === 0 && brand.approvedTerms.length === 0 ? (
+            <div className="p-10 rounded-xl bg-[#121212] border border-dashed border-[#262626] text-center space-y-2">
+              <FileText className="w-6 h-6 text-[#737373] mx-auto" />
+              <div className="text-xs font-medium text-white">No terminology rules configured for {brand.name}</div>
+              <p className="text-[11px] text-[#737373] max-w-sm mx-auto">
+                Upload brand voice guidelines above or paste guidelines directly to configure prohibited and approved terms.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-[#a3a3a3]">
+                  Prohibited Terms ({brand.prohibitedTerms.length})
+                </h2>
+                {brand.prohibitedTerms.length === 0 ? (
+                  <div className="p-4 rounded-lg bg-[#121212] border border-[#262626] text-xs text-[#737373]">
+                    No prohibited terms added.
+                  </div>
+                ) : (
+                  brand.prohibitedTerms.map((term) => (
+                    <div key={term.id} className="p-3 rounded-lg bg-[#121212] border border-[#262626] text-xs">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-white line-through">&ldquo;{term.term}&rdquo;</span>
+                        {term.sourceDoc && (
+                          <span className="text-[10px] text-[#737373]">
+                            {term.sourceDoc} {term.pageNumber ? `p.${term.pageNumber}` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[#8a8a8a] mb-1.5">{term.reason}</div>
+                      <div className="text-[#ededed]">Use instead: &ldquo;{term.suggestedAlternative}&rdquo;</div>
+                    </div>
+                  ))
+                )}
               </div>
-            ))}
-          </div>
 
-          <div className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-[#a3a3a3]">
-              Approved Terms
-            </h2>
-            {brand.approvedTerms.map((term) => (
-              <div key={term.id} className="p-3 rounded-lg bg-[#121212] border border-[#262626] text-xs">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-white">&ldquo;{term.term}&rdquo;</span>
-                  {term.sourceDoc && (
-                    <span className="text-[10px] text-[#737373]">
-                      {term.sourceDoc}
-                    </span>
-                  )}
-                </div>
-                <div className="text-[#8a8a8a]">{term.preferredUsage}</div>
+              <div className="space-y-3">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-[#a3a3a3]">
+                  Approved Terms ({brand.approvedTerms.length})
+                </h2>
+                {brand.approvedTerms.length === 0 ? (
+                  <div className="p-4 rounded-lg bg-[#121212] border border-[#262626] text-xs text-[#737373]">
+                    No approved terms added.
+                  </div>
+                ) : (
+                  brand.approvedTerms.map((term) => (
+                    <div key={term.id} className="p-3 rounded-lg bg-[#121212] border border-[#262626] text-xs">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-white">&ldquo;{term.term}&rdquo;</span>
+                        {term.sourceDoc && (
+                          <span className="text-[10px] text-[#737373]">
+                            {term.sourceDoc}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[#8a8a8a]">{term.preferredUsage}</div>
+                    </div>
+                  ))
+                )}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Tab 3: Tone */}
       {tab === 'tone' && (
         <div className="space-y-3">
-          {brand.toneGuidelines.map((g, i) => (
-            <div key={i} className="p-4 rounded-lg bg-[#121212] border border-[#262626] text-xs">
-              <div className="text-sm font-semibold text-white mb-1">{g.attribute}</div>
-              <p className="text-[#a3a3a3] mb-3">{g.description}</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                <div className="p-2 rounded bg-[#171717] border border-[#262626]">
-                  <span className="text-[#8a8a8a] block mb-0.5">Do:</span>
-                  <span className="text-[#ededed]">&ldquo;{g.doExample}&rdquo;</span>
-                </div>
-                <div className="p-2 rounded bg-[#171717] border border-[#262626]">
-                  <span className="text-[#8a8a8a] block mb-0.5">Don&apos;t:</span>
-                  <span className="text-[#8a8a8a] line-through">&ldquo;{g.dontExample}&rdquo;</span>
+          {brand.toneGuidelines.length === 0 ? (
+            <div className="p-10 rounded-xl bg-[#121212] border border-dashed border-[#262626] text-center space-y-2">
+              <FileText className="w-6 h-6 text-[#737373] mx-auto" />
+              <div className="text-xs font-medium text-white">No tone guidelines configured for {brand.name}</div>
+              <p className="text-[11px] text-[#737373] max-w-sm mx-auto">
+                Upload brand guidelines above to define voice pillars and tone examples.
+              </p>
+            </div>
+          ) : (
+            brand.toneGuidelines.map((g, i) => (
+              <div key={i} className="p-4 rounded-lg bg-[#121212] border border-[#262626] text-xs">
+                <div className="text-sm font-semibold text-white mb-1">{g.attribute}</div>
+                <p className="text-[#a3a3a3] mb-3">{g.description}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  <div className="p-2 rounded bg-[#171717] border border-[#262626]">
+                    <span className="text-[#8a8a8a] block mb-0.5">Do:</span>
+                    <span className="text-[#ededed]">&ldquo;{g.doExample}&rdquo;</span>
+                  </div>
+                  <div className="p-2 rounded bg-[#171717] border border-[#262626]">
+                    <span className="text-[#8a8a8a] block mb-0.5">Don&apos;t:</span>
+                    <span className="text-[#8a8a8a] line-through">&ldquo;{g.dontExample}&rdquo;</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       )}
 
@@ -431,7 +487,7 @@ export default function RulesPage() {
                       <CheckCircle2 className="w-3.5 h-3.5 text-white" />
                       <span>Reviewer approved</span>
                       <span className="text-[#525252]">•</span>
-                      <span className="text-[#737373]">
+                      <span suppressHydrationWarning className="text-[#737373]">
                         {new Date(edit.approvedAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
                     </div>

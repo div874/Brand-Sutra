@@ -332,38 +332,57 @@ export async function fetchRemoteStateFromSupabase(): Promise<{
     };
 
     const allFindings = findingsRes.data || [];
-    const drafts: Draft[] = (draftsRes.data || []).map(d => ({
-      id: d.id,
-      brandId: d.brand_id,
-      title: d.title,
-      content: d.content,
-      channel: d.channel || 'Blog Post',
-      targetAudience: d.target_audience || 'General Audience',
-      creatorId: d.creator_id,
-      creatorName: d.creator_name,
-      reviewerId: d.reviewer_id || undefined,
-      reviewerName: d.reviewer_name || undefined,
-      reviewStatus: d.review_status,
-      version: d.version || 1,
-      createdAt: d.created_at,
-      updatedAt: d.updated_at,
-      findings: allFindings.filter(f => f.draft_id === d.id).map(f => ({
-        id: f.id,
-        draftId: f.draft_id,
-        issueType: f.issue_type,
-        severity: f.severity,
-        quote: f.quote,
-        startIndex: f.start_index,
-        endIndex: f.end_index,
-        explanation: f.explanation,
-        sourceLink: f.source_link || undefined,
-        suggestedFix: f.suggested_fix,
-        status: f.status,
-        evidenceType: f.evidence_type || 'official_rule',
-        detectedBy: f.detected_by || 'deterministic',
-        createdAt: f.created_at || new Date().toISOString()
-      }))
-    }));
+    const drafts: Draft[] = (draftsRes.data || []).map(d => {
+      const rawDraftFindings = allFindings.filter(f => f.draft_id === d.id);
+      const seenQuotes = new Set<string>();
+      const dedupedFindings = [];
+
+      for (const f of rawDraftFindings) {
+        const key = `${f.quote?.toLowerCase().trim()}:${f.issue_type}`;
+        if (seenQuotes.has(key)) continue;
+        seenQuotes.add(key);
+
+        // Discard pending ghost findings whose text is completely absent from the draft copy
+        if (f.status === 'Pending' && d.content && !d.content.toLowerCase().includes((f.quote || '').toLowerCase().trim())) {
+          continue;
+        }
+
+        dedupedFindings.push({
+          id: f.id,
+          draftId: f.draft_id,
+          issueType: f.issue_type,
+          severity: f.severity,
+          quote: f.quote,
+          startIndex: f.start_index,
+          endIndex: f.end_index,
+          explanation: f.explanation,
+          sourceLink: f.source_link || undefined,
+          suggestedFix: f.suggested_fix,
+          status: f.status,
+          evidenceType: f.evidence_type || 'official_rule',
+          detectedBy: f.detected_by || 'deterministic',
+          createdAt: f.created_at || new Date().toISOString()
+        });
+      }
+
+      return {
+        id: d.id,
+        brandId: d.brand_id,
+        title: d.title,
+        content: d.content,
+        channel: d.channel || 'Blog Post',
+        targetAudience: d.target_audience || 'General Audience',
+        creatorId: d.creator_id,
+        creatorName: d.creator_name,
+        reviewerId: d.reviewer_id || undefined,
+        reviewerName: d.reviewer_name || undefined,
+        reviewStatus: d.review_status,
+        version: d.version || 1,
+        createdAt: d.created_at,
+        updatedAt: d.updated_at,
+        findings: dedupedFindings
+      };
+    });
 
     const approvedEdits: ApprovedEdit[] = (editsRes.data || []).map(e => ({
       id: e.id,
@@ -397,6 +416,137 @@ export async function fetchRemoteStateFromSupabase(): Promise<{
       approvedEdits: approvedEdits.length > 0 ? approvedEdits : undefined,
       auditLogs: auditLogs.length > 0 ? auditLogs : undefined
     };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Converts brand rules, facts, tone guidelines, and historical edits into 384-d embeddings
+ * and synchronizes them to Supabase pgvector table.
+ */
+export async function syncKnowledgeEmbeddingsToSupabase(
+  brand: BrandProfile, 
+  approvedEdits: ApprovedEdit[] = []
+): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { generateEmbedding } = await import('./embeddings');
+    const rows: Array<{
+      id: string;
+      brand_id: string;
+      knowledge_type: 'rule' | 'fact' | 'historical_edit' | 'tone';
+      source_id: string;
+      title: string;
+      content: string;
+      source_doc: string | null;
+      page_number: number | null;
+      verified_date: string | null;
+      embedding: number[];
+    }> = [];
+
+    // 1. Facts
+    for (const fact of brand.trustedFacts) {
+      const content = `${fact.topic}. ${fact.claimOrStat}. Source: ${fact.source}`;
+      rows.push({
+        id: `vec-fact-${fact.id}`,
+        brand_id: brand.id,
+        knowledge_type: 'fact',
+        source_id: fact.id,
+        title: fact.topic,
+        content,
+        source_doc: fact.sourceDoc || fact.source || null,
+        page_number: fact.pageNumber || null,
+        verified_date: fact.verifiedDate || null,
+        embedding: generateEmbedding(content)
+      });
+    }
+
+    // 2. Prohibited terms
+    for (const term of brand.prohibitedTerms) {
+      const content = `Prohibited term: ${term.term}. Rationale: ${term.reason}. Suggested replacement: ${term.suggestedAlternative}`;
+      rows.push({
+        id: `vec-rule-${term.id}`,
+        brand_id: brand.id,
+        knowledge_type: 'rule',
+        source_id: term.id,
+        title: `Rule: "${term.term}"`,
+        content,
+        source_doc: term.sourceDoc || null,
+        page_number: term.pageNumber || null,
+        verified_date: null,
+        embedding: generateEmbedding(content)
+      });
+    }
+
+    // 3. Tone Guidelines
+    for (const tone of brand.toneGuidelines) {
+      const content = `Tone Pillar: ${tone.attribute}. ${tone.description}. Avoid: ${tone.dontExample}. Do: ${tone.doExample}`;
+      rows.push({
+        id: `vec-tone-${brand.id}-${tone.attribute.toLowerCase().replace(/\s+/g, '-')}`,
+        brand_id: brand.id,
+        knowledge_type: 'tone',
+        source_id: tone.attribute,
+        title: `Tone: ${tone.attribute}`,
+        content,
+        source_doc: tone.sourceDoc || null,
+        page_number: tone.pageNumber || null,
+        verified_date: null,
+        embedding: generateEmbedding(content)
+      });
+    }
+
+    // 4. Approved Edits (Historical Precedents)
+    for (const edit of approvedEdits) {
+      const content = `Past edit approved by ${edit.approvedBy}: "${edit.originalText}" changed to "${edit.approvedChange}". Rationale: ${edit.reason}`;
+      rows.push({
+        id: `vec-edit-${edit.id}`,
+        brand_id: brand.id,
+        knowledge_type: 'historical_edit',
+        source_id: edit.id,
+        title: `Precedent: "${edit.originalText}"`,
+        content,
+        source_doc: null,
+        page_number: null,
+        verified_date: null,
+        embedding: generateEmbedding(content)
+      });
+    }
+
+    if (rows.length > 0) {
+      const { error } = await supabase.from('knowledge_embeddings').upsert(rows);
+      return !error;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Query Supabase pgvector store using match_knowledge_embeddings RPC
+ */
+export async function queryKnowledgeVectorsViaSupabase(
+  query: string,
+  brandId?: string,
+  topK: number = 4,
+  matchThreshold: number = 0.5
+) {
+  if (!supabase) return null;
+  try {
+    const { generateEmbedding } = await import('./embeddings');
+    const queryEmbedding = generateEmbedding(query);
+
+    const { data, error } = await supabase.rpc('match_knowledge_embeddings', {
+      query_embedding: queryEmbedding,
+      match_threshold: matchThreshold,
+      match_count: topK,
+      p_brand_id: brandId || null
+    });
+
+    if (error || !data) return null;
+    return data;
   } catch {
     return null;
   }

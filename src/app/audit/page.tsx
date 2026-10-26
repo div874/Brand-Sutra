@@ -104,7 +104,7 @@ export default function AuditPage() {
                     </span>
                   </div>
 
-                  <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                  <span suppressHydrationWarning className="text-[11px] text-slate-500 flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     {new Date(log.timestamp).toLocaleString()}
                   </span>

@@ -120,6 +120,68 @@ create table if not exists public.audit_logs (
   timestamp timestamptz default now()
 );
 
+-- 9. Knowledge Embeddings (pgvector Semantic Search)
+create extension if not exists vector;
+
+create table if not exists public.knowledge_embeddings (
+  id text primary key,
+  brand_id text references public.brands(id) on delete cascade,
+  knowledge_type text check (knowledge_type in ('rule', 'fact', 'historical_edit', 'tone')),
+  source_id text not null,
+  title text not null,
+  content text not null,
+  source_doc text,
+  page_number int,
+  verified_date text,
+  embedding vector(384),
+  created_at timestamptz default now()
+);
+
+-- Index for fast approximate cosine nearest neighbor search
+create index if not exists idx_knowledge_embeddings_cosine 
+  on public.knowledge_embeddings 
+  using ivfflat (embedding vector_cosine_ops)
+  with (lists = 100);
+
+-- RPC Function for Cosine Distance Semantic Matching
+create or replace function public.match_knowledge_embeddings (
+  query_embedding vector(384),
+  match_threshold float,
+  match_count int,
+  p_brand_id text default null
+)
+returns table (
+  id text,
+  brand_id text,
+  knowledge_type text,
+  source_id text,
+  title text,
+  content text,
+  source_doc text,
+  page_number int,
+  verified_date text,
+  similarity float
+)
+language sql stable
+as $$
+  select
+    id,
+    brand_id,
+    knowledge_type,
+    source_id,
+    title,
+    content,
+    source_doc,
+    page_number,
+    verified_date,
+    1 - (knowledge_embeddings.embedding <=> query_embedding) as similarity
+  from public.knowledge_embeddings
+  where (p_brand_id is null or brand_id = p_brand_id)
+    and 1 - (knowledge_embeddings.embedding <=> query_embedding) > match_threshold
+  order by similarity desc
+  limit match_count;
+$$;
+
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
@@ -132,6 +194,7 @@ alter table public.drafts enable row level security;
 alter table public.findings enable row level security;
 alter table public.approved_edits enable row level security;
 alter table public.audit_logs enable row level security;
+alter table public.knowledge_embeddings enable row level security;
 
 -- Row Level Security (RLS) Permissive Policies for App Client
 drop policy if exists "Allow read access to brand guidelines" on public.brands;
@@ -143,6 +206,7 @@ drop policy if exists "Allow read/write on drafts" on public.drafts;
 drop policy if exists "Allow read/write on findings" on public.findings;
 drop policy if exists "Allow read/write on approved edits" on public.approved_edits;
 drop policy if exists "Allow read/write on audit logs" on public.audit_logs;
+drop policy if exists "Allow read/write on knowledge embeddings" on public.knowledge_embeddings;
 
 create policy "Allow all on brands" on public.brands for all using (true) with check (true);
 create policy "Allow all on trusted_facts" on public.trusted_facts for all using (true) with check (true);
@@ -152,3 +216,4 @@ create policy "Allow all on drafts" on public.drafts for all using (true) with c
 create policy "Allow all on findings" on public.findings for all using (true) with check (true);
 create policy "Allow all on approved_edits" on public.approved_edits for all using (true) with check (true);
 create policy "Allow all on audit_logs" on public.audit_logs for all using (true) with check (true);
+create policy "Allow all on knowledge embeddings" on public.knowledge_embeddings for all using (true) with check (true);

@@ -1,242 +1,292 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/store';
-import { StatusBadge } from '@/components/StatusBadge';
-import { FindingCard } from '@/components/FindingCard';
-import { Send, CheckCircle2, RotateCcw, Sparkles, Database } from 'lucide-react';
-import { analyzeDraftContent } from '@/lib/retrieval-engine';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { 
+  Plus, 
+  Building2, 
+  ArrowRight, 
+  BookOpen, 
+  FileText, 
+  ShieldCheck, 
+  Sparkles,
+  X,
+  Search,
+  Check
+} from 'lucide-react';
 
-export default function Home() {
-  const {
-    brand,
-    drafts,
-    currentDraftId,
-    currentDraft,
-    setCurrentDraftId,
-    updateDraftContent,
-    updateDraftStatus,
-    applyFindingFix,
-    ignoreFinding,
-    setDraftFindings,
-    userRole,
-    comments,
-    addComment,
-    approvedEdits,
-    activeFindingId,
-    setActiveFindingId,
-  } = useApp();
+export default function HomePage() {
+  const router = useRouter();
+  const { brands, selectedBrandId, selectBrand, createBrand, drafts } = useApp();
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newBrandName, setNewBrandName] = useState('');
+  const [newBrandDesc, setNewBrandDesc] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  const [commentText, setCommentText] = useState('');
-
-  if (!currentDraft) {
-    return (
-      <div className="text-center py-20 text-[#737373] text-sm">
-        No draft loaded. Click Reset in the top right to load the default template.
-      </div>
-    );
-  }
-
-  const activeFindings = currentDraft.findings.filter(f => f.status === 'Pending');
-  const draftComments = comments.filter(c => c.draftId === currentDraft.id);
-
-  const handleCommentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!commentText.trim()) return;
-    addComment(currentDraft.id, commentText.trim());
-    setCommentText('');
+  const handleSelectBrand = (brandId: string) => {
+    selectBrand(brandId);
+    router.push('/dashboard');
   };
 
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newBrandName.trim();
+    if (!trimmed) {
+      setValidationError('Brand name is required.');
+      return;
+    }
+
+    const created = createBrand({
+      name: trimmed,
+      description: newBrandDesc.trim() || undefined
+    });
+
+    setNewBrandName('');
+    setNewBrandDesc('');
+    setValidationError(null);
+    setIsModalOpen(false);
+    
+    // Open new brand's workspace directly
+    selectBrand(created.id);
+    router.push('/dashboard');
+  };
+
+  const filteredBrands = brands.filter(b => 
+    b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (b.description && b.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   return (
-    <div className="space-y-6">
-      {/* Basic Dashboard Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#262626]">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-white tracking-tight">
-              {currentDraft.title}
-            </h1>
-            <StatusBadge status={currentDraft.reviewStatus} />
-          </div>
-          <p className="text-xs text-[#8a8a8a] mt-1">
-            Author: {currentDraft.creatorName} • Channel: {currentDraft.channel}
+    <div className="space-y-10 py-4 max-w-6xl mx-auto">
+      {/* 1. Hero & Value Proposition */}
+      <div className="text-center space-y-4 pt-6 pb-2">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#262626] text-xs text-[#a3a3a3]">
+          <div className="w-2 h-2 rounded-full bg-emerald-400" />
+          <span>Brand Sutra Enterprise Content Pre-Check</span>
+        </div>
+
+        <div className="space-y-2">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white">
+            Consistent brands. Confident content.
+          </h1>
+          <p className="text-sm sm:text-base text-[#8a8a8a] max-w-2xl mx-auto leading-relaxed">
+            Audit marketing copy against verified brand guidelines, prohibited terminology, 
+            and official lab certifications before publication. Select a brand workspace or configure a new brand profile.
           </p>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2">
-          {/* Draft switch */}
-          <select
-            value={currentDraftId}
-            onChange={(e) => setCurrentDraftId(e.target.value)}
-            className="text-xs bg-[#121212] border border-[#262626] rounded px-2.5 py-1.5 text-[#ededed] focus:border-[#525252]"
+        <div className="pt-2 flex items-center justify-center gap-3">
+          <button
+            id="btn-create-brand"
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white text-black text-xs sm:text-sm font-semibold hover:bg-[#e5e5e5] transition-all shadow-sm"
           >
-            {drafts.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.title} ({d.reviewStatus})
-              </option>
-            ))}
-          </select>
-
-          {/* Role-based status action */}
-          {userRole === 'creator' && currentDraft.reviewStatus !== 'In Review' && currentDraft.reviewStatus !== 'Approved' && (
-            <button
-              id="btn-submit-review"
-              type="button"
-              onClick={() => updateDraftStatus(currentDraft.id, 'In Review')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-black bg-white hover:bg-[#d4d4d4] rounded transition-colors"
-            >
-              <Send className="w-3 h-3" />
-              Submit
-            </button>
-          )}
-
-          {userRole === 'reviewer' && (
-            <div className="flex items-center gap-1.5">
-              <button
-                id="btn-request-changes"
-                type="button"
-                onClick={() => updateDraftStatus(currentDraft.id, 'Changes Requested')}
-                className="px-2.5 py-1.5 text-xs font-medium text-[#d4d4d4] bg-[#1a1a1a] hover:bg-[#262626] border border-[#333333] rounded transition-colors"
-              >
-                Request Changes
-              </button>
-              <button
-                id="btn-approve"
-                type="button"
-                onClick={() => updateDraftStatus(currentDraft.id, 'Approved')}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-black bg-white hover:bg-[#d4d4d4] rounded transition-colors"
-              >
-                <CheckCircle2 className="w-3 h-3" />
-                Approve
-              </button>
-            </div>
-          )}
+            <Plus className="w-4 h-4 text-black" />
+            <span>Create New Brand</span>
+          </button>
         </div>
       </div>
 
-      {/* Main 2-Column Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left: Text Editor & Notes (7 cols) */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="rounded-lg bg-[#121212] border border-[#262626] p-4">
-            <div className="flex items-center justify-between mb-2 text-xs text-[#8a8a8a]">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-white">Draft Content</span>
-                <span>•</span>
-                <span>{currentDraft.content.split(/\s+/).filter(Boolean).length} words</span>
-              </div>
-
-              <button
-                id="btn-recheck-draft"
-                type="button"
-                onClick={() => {
-                  const freshFindings = analyzeDraftContent(currentDraft.id, currentDraft.content, brand, approvedEdits);
-                  setDraftFindings(currentDraft.id, freshFindings);
-                }}
-                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-[#ededed] bg-[#1a1a1a] hover:bg-[#262626] border border-[#333333] rounded transition-colors"
-                title="Evaluate draft against official evidence and retrieve learned precedents"
-              >
-                <Sparkles className="w-3 h-3 text-[#a3a3a3]" />
-                <span>Re-check Rules & Facts</span>
-              </button>
-            </div>
-
-            <textarea
-              id="draft-content-textarea"
-              value={currentDraft.content}
-              onChange={(e) => updateDraftContent(currentDraft.id, e.target.value)}
-              rows={11}
-              className="w-full bg-[#0a0a0a] border border-[#262626] rounded p-3 text-sm leading-relaxed text-[#ededed] placeholder:text-[#525252] focus:border-[#525252] font-mono resize-y"
-              placeholder="Paste or write your draft here..."
-            />
+      {/* 2. Brand Workspaces Section */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#262626]">
+          <div>
+            <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
+              Brand Workspaces ({brands.length})
+            </h2>
+            <p className="text-xs text-[#737373] mt-0.5">
+              Each brand workspace maintains strictly isolated rules, trusted facts, drafts, and review histories.
+            </p>
           </div>
 
-          {/* Simple Review Notes */}
-          <div className="rounded-lg bg-[#121212] border border-[#262626] p-4">
-            <div className="text-xs font-medium text-white mb-3">
-              Review Notes & Feedback ({draftComments.length})
-            </div>
-
-            <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
-              {draftComments.length === 0 ? (
-                <div className="text-xs text-[#737373] py-2">
-                  No review notes yet.
-                </div>
-              ) : (
-                draftComments.map((comm) => (
-                  <div key={comm.id} className="text-xs p-2 rounded bg-[#0a0a0a] border border-[#262626]">
-                    <div className="flex items-center justify-between text-[#8a8a8a] mb-1 text-[11px]">
-                      <span>{comm.authorName}</span>
-                      <span>{new Date(comm.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                    <p className="text-[#d4d4d4]">{comm.content}</p>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <form onSubmit={handleCommentSubmit} className="flex gap-2">
+          {brands.length > 3 && (
+            <div className="relative w-full sm:w-64">
+              <Search className="w-3.5 h-3.5 text-[#737373] absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                placeholder="Write a brief note..."
-                className="flex-1 bg-[#0a0a0a] border border-[#262626] rounded px-3 py-1.5 text-xs text-[#ededed] placeholder:text-[#525252] focus:border-[#525252]"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search brands..."
+                className="w-full bg-[#121212] border border-[#262626] rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-[#525252] focus:border-[#525252] outline-none"
               />
-              <button
-                type="submit"
-                disabled={!commentText.trim()}
-                className="px-3 py-1.5 text-xs font-medium text-black bg-white hover:bg-[#d4d4d4] disabled:opacity-40 rounded transition-colors"
+            </div>
+          )}
+        </div>
+
+        {/* Brand Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredBrands.map((b) => {
+            const isSelected = b.id === selectedBrandId;
+            const totalRules = (b.prohibitedTerms?.length || 0) + (b.trustedFacts?.length || 0);
+            const totalTone = b.toneGuidelines?.length || 0;
+            const brandDraftsCount = drafts.filter(d => d.brandId === b.id).length;
+
+            return (
+              <div
+                key={b.id}
+                id={`brand-card-${b.id}`}
+                onClick={() => handleSelectBrand(b.id)}
+                className={`group relative rounded-xl p-5 border text-left transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+                  isSelected
+                    ? 'bg-[#141414] border-[#444444] shadow-md'
+                    : 'bg-[#111111] border-[#222222] hover:border-[#383838] hover:bg-[#161616]'
+                }`}
               >
-                Send
+                <div className="space-y-3">
+                  {/* Top Bar with Badge */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="w-9 h-9 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center text-white font-bold text-sm">
+                      {b.name.charAt(0).toUpperCase()}
+                    </div>
+
+                    {isSelected ? (
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/50 px-2 py-0.5 rounded-full">
+                        <Check className="w-3 h-3" /> Active Workspace
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-[#737373] group-hover:text-white transition-colors flex items-center gap-1">
+                        Select <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Brand Name & Description */}
+                  <div>
+                    <h3 className="text-base font-semibold text-white tracking-tight group-hover:text-white transition-colors">
+                      {b.name}
+                    </h3>
+                    <p className="text-xs text-[#8a8a8a] mt-1 line-clamp-2 leading-relaxed">
+                      {b.description || b.tagline || 'No description provided.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Metadata Footer */}
+                <div className="pt-4 mt-4 border-t border-[#1c1c1c] flex items-center justify-between text-[11px] text-[#737373]">
+                  <span className="flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-[#555555]" />
+                    <span>{totalRules} rules & facts</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-[#555555]" />
+                    <span>{brandDraftsCount} draft{brandDraftsCount === 1 ? '' : 's'}</span>
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. Create Brand Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div 
+            className="w-full max-w-md bg-[#0f0f0f] border border-[#262626] rounded-xl shadow-2xl p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150"
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#222222]">
+              <div>
+                <h3 className="text-base font-semibold text-white">Create New Brand</h3>
+                <p className="text-xs text-[#737373] mt-0.5">
+                  Set up a clean brand profile with its own isolated rules and drafts.
+                </p>
+              </div>
+              <button
+                type="button"
+                id="btn-close-modal"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setValidationError(null);
+                }}
+                className="text-[#737373] hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
               </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleCreateSubmit} className="space-y-4">
+              {validationError && (
+                <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 text-xs">
+                  {validationError}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label htmlFor="input-brand-name" className="block text-xs font-medium text-white">
+                  Brand Name <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  id="input-brand-name"
+                  type="text"
+                  required
+                  autoFocus
+                  value={newBrandName}
+                  onChange={(e) => {
+                    setNewBrandName(e.target.value);
+                    if (validationError) setValidationError(null);
+                  }}
+                  placeholder="e.g., Nova Acoustics"
+                  className="w-full bg-[#171717] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[#525252] focus:border-white outline-none transition-colors"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="input-brand-description" className="block text-xs font-medium text-[#d4d4d4]">
+                  Short Description <span className="text-[#737373] font-normal">(optional)</span>
+                </label>
+                <textarea
+                  id="input-brand-description"
+                  rows={3}
+                  value={newBrandDesc}
+                  onChange={(e) => setNewBrandDesc(e.target.value)}
+                  placeholder="Brief summary of the brand voice, core product line, or mission..."
+                  className="w-full bg-[#171717] border border-[#262626] rounded-lg px-3 py-2 text-xs text-white placeholder:text-[#525252] focus:border-white outline-none resize-none transition-colors"
+                />
+              </div>
+
+              <div className="p-3 rounded-lg bg-[#141414] border border-[#222222] text-[11px] text-[#8a8a8a] space-y-1">
+                <div className="font-medium text-[#d4d4d4] flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Isolated Brand Profile</span>
+                </div>
+                <p>
+                  This new brand starts with a blank knowledge base. You can upload brand documents, policies, or product specs in Rules & Facts after creation.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  id="btn-cancel-create"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setValidationError(null);
+                  }}
+                  className="px-4 py-2 rounded-lg bg-[#171717] hover:bg-[#222222] text-xs font-medium text-[#a3a3a3] hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  id="btn-submit-brand"
+                  className="px-4 py-2 rounded-lg bg-white hover:bg-[#e5e5e5] text-xs font-semibold text-black transition-colors"
+                >
+                  Create Brand Workspace
+                </button>
+              </div>
             </form>
           </div>
         </div>
-
-        {/* Right: Findings Stack (5 cols) */}
-        <div className="lg:col-span-5 space-y-3">
-          <div className="flex items-center justify-between pb-1">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-[#a3a3a3]">
-              Detected Issues
-            </h2>
-            <span className="text-xs text-[#737373]">
-              {activeFindings.length} open
-            </span>
-          </div>
-
-          {activeFindings.length === 0 ? (
-            <div className="rounded-lg bg-[#121212] border border-[#262626] p-6 text-center text-xs text-[#8a8a8a]">
-              No open brand issues. Content is clean.
-            </div>
-          ) : (
-            activeFindings.map((finding) => {
-              const matchingPrecedent = approvedEdits.find(e => 
-                e.originalText.toLowerCase().trim() === finding.quote.toLowerCase().trim() ||
-                e.findingId === finding.id ||
-                finding.quote.toLowerCase().includes(e.originalText.toLowerCase()) ||
-                e.originalText.toLowerCase().includes(finding.quote.toLowerCase())
-              );
-
-              return (
-                <FindingCard
-                  key={finding.id}
-                  finding={finding}
-                  isActive={activeFindingId === finding.id}
-                  historicalPrecedent={matchingPrecedent}
-                  onSelect={() => setActiveFindingId(finding.id)}
-                  onAccept={() => applyFindingFix(currentDraft.id, finding.id)}
-                  onIgnore={() => ignoreFinding(currentDraft.id, finding.id)}
-                />
-              );
-            })
-          )}
-        </div>
-
-      </div>
+      )}
     </div>
   );
 }

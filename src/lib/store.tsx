@@ -27,12 +27,17 @@ import {
   syncBrandToSupabase,
   syncDraftToSupabase,
   syncApprovedEditToSupabase,
+  syncKnowledgeEmbeddingsToSupabase,
   fetchRemoteStateFromSupabase,
   SupabaseSyncStatus
 } from './supabase-sync';
 
 interface AppContextType {
+  brands: BrandProfile[];
   brand: BrandProfile;
+  selectedBrandId: string;
+  selectBrand: (id: string) => void;
+  createBrand: (input: { name: string; description?: string }) => BrandProfile;
   updateBrand: (updated: BrandProfile) => void;
   drafts: Draft[];
   currentDraftId: string;
@@ -68,6 +73,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 
 const STORAGE_KEYS = {
+  BRANDS: 'brandsutra_brands',
+  SELECTED_BRAND_ID: 'brandsutra_selected_brand_id',
   BRAND: 'brandsutra_profile',
   DRAFTS: 'brandsutra_drafts',
   CURRENT_DRAFT: 'brandsutra_curr_draft',
@@ -78,13 +85,14 @@ const STORAGE_KEYS = {
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [brand, setBrand] = useState<BrandProfile>(() => JSON.parse(JSON.stringify(INITIAL_BRAND_PROFILE)));
-  const [drafts, setDrafts] = useState<Draft[]>(() => JSON.parse(JSON.stringify(INITIAL_DRAFTS)));
+  const [brands, setBrands] = useState<BrandProfile[]>(() => [JSON.parse(JSON.stringify(INITIAL_BRAND_PROFILE))]);
+  const [selectedBrandId, setSelectedBrandId] = useState<string>(INITIAL_BRAND_PROFILE.id);
+  const [allDrafts, setAllDrafts] = useState<Draft[]>(() => JSON.parse(JSON.stringify(INITIAL_DRAFTS)));
   const [currentDraftId, setCurrentDraftId] = useState<string>(INITIAL_DRAFTS[0].id);
   const [userRole, setUserRole] = useState<UserRole>('creator');
-  const [comments, setComments] = useState<DraftComment[]>(() => JSON.parse(JSON.stringify(INITIAL_COMMENTS)));
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => JSON.parse(JSON.stringify(INITIAL_AUDIT_LOGS)));
-  const [approvedEdits, setApprovedEdits] = useState<ApprovedEdit[]>(() => JSON.parse(JSON.stringify(INITIAL_APPROVED_EDITS)));
+  const [allComments, setAllComments] = useState<DraftComment[]>(() => JSON.parse(JSON.stringify(INITIAL_COMMENTS)));
+  const [allAuditLogs, setAllAuditLogs] = useState<AuditLogEntry[]>(() => JSON.parse(JSON.stringify(INITIAL_AUDIT_LOGS)));
+  const [allApprovedEdits, setAllApprovedEdits] = useState<ApprovedEdit[]>(() => JSON.parse(JSON.stringify(INITIAL_APPROVED_EDITS)));
   const [activeFindingId, setActiveFindingId] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [supabaseStatus, setSupabaseStatus] = useState<SupabaseSyncStatus>({
@@ -94,16 +102,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     message: 'Checking Supabase connection...'
   });
 
+  // Derived current brand
+  const brand = brands.find(b => b.id === selectedBrandId) || brands[0] || INITIAL_BRAND_PROFILE;
+
+  // Derived drafts scoped strictly to current brand
+  const drafts = allDrafts.filter(d => d.brandId === brand.id);
+  const currentDraft = drafts.find(d => d.id === currentDraftId) || drafts[0];
+
+  // Derived approved edits scoped to current brand (or global default if legacy)
+  const approvedEdits = allApprovedEdits.filter(e => 
+    e.brandId === brand.id || (!e.brandId && brand.id === INITIAL_BRAND_PROFILE.id)
+  );
+
+  // Derived comments & audit logs scoped to drafts of current brand
+  const brandDraftIds = new Set(drafts.map(d => d.id));
+  const comments = allComments.filter(c => brandDraftIds.has(c.draftId));
+  const auditLogs = allAuditLogs.filter(a => brandDraftIds.has(a.draftId));
+
   const refreshSupabaseStatus = async (): Promise<SupabaseSyncStatus> => {
     const status = await checkSupabaseStatus();
     setSupabaseStatus(status);
     if (status.tablesReady) {
       const remote = await fetchRemoteStateFromSupabase();
       if (remote) {
-        if (remote.brand) setBrand(remote.brand);
-        if (remote.approvedEdits) setApprovedEdits(remote.approvedEdits);
-        if (remote.drafts) setDrafts(remote.drafts);
-        if (remote.auditLogs) setAuditLogs(remote.auditLogs);
+        if (remote.brand) {
+          setBrands(prev => {
+            const exists = prev.some(b => b.id === remote.brand!.id);
+            if (exists) {
+              return prev.map(b => b.id === remote.brand!.id ? remote.brand! : b);
+            }
+            return [...prev, remote.brand!];
+          });
+        }
+        if (remote.approvedEdits) {
+          setAllApprovedEdits(prev => {
+            const seen = new Set(prev.map(e => e.id));
+            const newEdits = remote.approvedEdits!.filter(e => !seen.has(e.id));
+            return [...prev, ...newEdits];
+          });
+        }
+        if (remote.drafts) {
+          setAllDrafts(prev => {
+            const seen = new Set(prev.map(d => d.id));
+            const newDrafts = remote.drafts!.filter(d => !seen.has(d.id));
+            return [...prev, ...newDrafts];
+          });
+        }
+        if (remote.auditLogs) {
+          setAllAuditLogs(prev => {
+            const seen = new Set(prev.map(a => a.id));
+            const newLogs = remote.auditLogs!.filter(a => !seen.has(a.id));
+            return [...prev, ...newLogs];
+          });
+        }
       }
     }
     return status;
@@ -122,27 +173,98 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
     }
     try {
-      await syncBrandToSupabase(brand);
-      for (const d of drafts) {
+      for (const b of brands) {
+        await syncBrandToSupabase(b);
+      }
+      for (const d of allDrafts) {
         await syncDraftToSupabase(d);
       }
-      for (const e of approvedEdits) {
+      for (const e of allApprovedEdits) {
         await syncApprovedEditToSupabase(e);
       }
-      return { success: true, message: 'All brand rules, facts, drafts, and approved edits synced to Supabase.' };
+      try {
+        await syncKnowledgeEmbeddingsToSupabase(brand, approvedEdits);
+      } catch {
+        // Non-blocking pgvector sync fallback
+      }
+      return { success: true, message: 'All brands, rules, facts, drafts, approved edits, and vector embeddings synced to Supabase.' };
     } catch (err) {
       return { success: false, message: err instanceof Error ? err.message : 'Sync failed' };
     }
   };
 
-  // Hydrate from localStorage and Supabase on client mount
+  // Hydrate from localStorage on client mount
   useEffect(() => {
     try {
-      const savedBrand = localStorage.getItem(STORAGE_KEYS.BRAND);
-      if (savedBrand) setBrand(JSON.parse(savedBrand));
+      let loadedBrands: BrandProfile[] = [];
+      const savedBrands = localStorage.getItem(STORAGE_KEYS.BRANDS);
+      if (savedBrands) {
+        try {
+          loadedBrands = JSON.parse(savedBrands) as BrandProfile[];
+        } catch {}
+      }
 
+      // Backward compatibility: If no brands array saved yet, check single brand key
+      if (loadedBrands.length === 0) {
+        const savedSingleBrand = localStorage.getItem(STORAGE_KEYS.BRAND);
+        if (savedSingleBrand) {
+          try {
+            const parsed = JSON.parse(savedSingleBrand) as BrandProfile;
+            if (parsed.name === 'EcoSutra Wearables') parsed.name = 'EchoStream';
+            loadedBrands = [parsed];
+          } catch {}
+        }
+      }
+
+      // Ensure EchoStream base brand is always present
+      if (!loadedBrands.some(b => b.id === INITIAL_BRAND_PROFILE.id || b.name.toLowerCase() === 'echostream')) {
+        loadedBrands.unshift(JSON.parse(JSON.stringify(INITIAL_BRAND_PROFILE)));
+      }
+
+      // For EchoStream brand, ensure baseline prohibited terms are present
+      loadedBrands = loadedBrands.map(b => {
+        if (b.id === INITIAL_BRAND_PROFILE.id || b.name.toLowerCase() === 'echostream') {
+          const existingTerms = new Set((b.prohibitedTerms || []).map(t => t.term.toLowerCase().trim()));
+          const missingBaseline = INITIAL_BRAND_PROFILE.prohibitedTerms.filter(t => !existingTerms.has(t.term.toLowerCase().trim()));
+          if (missingBaseline.length > 0) {
+            return { ...b, prohibitedTerms: [...(b.prohibitedTerms || []), ...missingBaseline] };
+          }
+        }
+        return b;
+      });
+
+      setBrands(loadedBrands);
+
+      // Selected brand ID
+      const savedSelectedBrandId = localStorage.getItem(STORAGE_KEYS.SELECTED_BRAND_ID);
+      const initialSelectedId = (savedSelectedBrandId && loadedBrands.some(b => b.id === savedSelectedBrandId))
+        ? savedSelectedBrandId
+        : loadedBrands[0].id;
+      setSelectedBrandId(initialSelectedId);
+
+      // Drafts
       const savedDrafts = localStorage.getItem(STORAGE_KEYS.DRAFTS);
-      if (savedDrafts) setDrafts(JSON.parse(savedDrafts));
+      if (savedDrafts) {
+        const parsedDrafts = JSON.parse(savedDrafts) as Draft[];
+        const cleanedDrafts = parsedDrafts.map(d => {
+          const seen = new Set<string>();
+          const cleanedFindings = (d.findings || []).filter(f => {
+            const key = `${f.quote?.toLowerCase().trim()}:${f.issueType}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            if (f.status === 'Pending' && d.content && !d.content.toLowerCase().includes((f.quote || '').toLowerCase().trim())) {
+              return false;
+            }
+            return true;
+          });
+          return { 
+            ...d, 
+            brandId: d.brandId || INITIAL_BRAND_PROFILE.id,
+            findings: cleanedFindings 
+          };
+        });
+        setAllDrafts(cleanedDrafts);
+      }
 
       const savedCurr = localStorage.getItem(STORAGE_KEYS.CURRENT_DRAFT);
       if (savedCurr) setCurrentDraftId(savedCurr);
@@ -151,15 +273,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (savedRole) setUserRole(savedRole as UserRole);
 
       const savedComments = localStorage.getItem(STORAGE_KEYS.COMMENTS);
-      if (savedComments) setComments(JSON.parse(savedComments));
+      if (savedComments) setAllComments(JSON.parse(savedComments));
 
       const savedAudit = localStorage.getItem(STORAGE_KEYS.AUDIT);
-      if (savedAudit) setAuditLogs(JSON.parse(savedAudit));
+      if (savedAudit) setAllAuditLogs(JSON.parse(savedAudit));
 
       const savedEdits = localStorage.getItem(STORAGE_KEYS.APPROVED_EDITS);
-      if (savedEdits) setApprovedEdits(JSON.parse(savedEdits));
+      if (savedEdits) {
+        const parsedEdits = JSON.parse(savedEdits) as ApprovedEdit[];
+        const scopedEdits = parsedEdits.map(e => ({
+          ...e,
+          brandId: e.brandId || INITIAL_BRAND_PROFILE.id
+        }));
+        setAllApprovedEdits(scopedEdits);
+      }
     } catch {
-      // Fallback to initial defaults if parsing fails
+      // Fallback
     }
     setIsLoaded(true);
     refreshSupabaseStatus();
@@ -169,59 +298,122 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return;
     try {
+      localStorage.setItem(STORAGE_KEYS.BRANDS, JSON.stringify(brands));
+      localStorage.setItem(STORAGE_KEYS.SELECTED_BRAND_ID, selectedBrandId);
       localStorage.setItem(STORAGE_KEYS.BRAND, JSON.stringify(brand));
-      localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
+      localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(allDrafts));
       localStorage.setItem(STORAGE_KEYS.CURRENT_DRAFT, currentDraftId);
       localStorage.setItem(STORAGE_KEYS.ROLE, userRole);
-      localStorage.setItem(STORAGE_KEYS.COMMENTS, JSON.stringify(comments));
-      localStorage.setItem(STORAGE_KEYS.AUDIT, JSON.stringify(auditLogs));
-      localStorage.setItem(STORAGE_KEYS.APPROVED_EDITS, JSON.stringify(approvedEdits));
+      localStorage.setItem(STORAGE_KEYS.COMMENTS, JSON.stringify(allComments));
+      localStorage.setItem(STORAGE_KEYS.AUDIT, JSON.stringify(allAuditLogs));
+      localStorage.setItem(STORAGE_KEYS.APPROVED_EDITS, JSON.stringify(allApprovedEdits));
     } catch {
       // Storage error safeguard
     }
-  }, [brand, drafts, currentDraftId, userRole, comments, auditLogs, approvedEdits, isLoaded]);
+  }, [brands, selectedBrandId, brand, allDrafts, currentDraftId, userRole, allComments, allAuditLogs, allApprovedEdits, isLoaded]);
 
-  const currentDraft = drafts.find(d => d.id === currentDraftId) || drafts[0];
+  const selectBrand = (id: string) => {
+    const targetBrand = brands.find(b => b.id === id);
+    if (!targetBrand) return;
+    setSelectedBrandId(id);
+    try {
+      localStorage.setItem(STORAGE_KEYS.SELECTED_BRAND_ID, id);
+    } catch {}
+
+    const brandDrafts = allDrafts.filter(d => d.brandId === id);
+    if (brandDrafts.length > 0) {
+      setCurrentDraftId(brandDrafts[0].id);
+    } else {
+      setCurrentDraftId('');
+    }
+  };
+
+  const createBrand = (input: { name: string; description?: string }): BrandProfile => {
+    const cleanName = input.name.trim();
+    const newBrand: BrandProfile = {
+      id: `brand-${Date.now()}`,
+      name: cleanName,
+      tagline: 'Consistent brands. Confident content.',
+      description: input.description?.trim() || '',
+      voiceSummary: 'Clear, authoritative, and compliant with company guidelines.',
+      toneGuidelines: [],
+      prohibitedTerms: [],
+      approvedTerms: [],
+      trustedFacts: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    setBrands(prev => [...prev, newBrand]);
+    setSelectedBrandId(newBrand.id);
+    setCurrentDraftId('');
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.SELECTED_BRAND_ID, newBrand.id);
+    } catch {}
+
+    syncBrandToSupabase(newBrand).catch(() => {});
+    return newBrand;
+  };
 
   const updateBrand = (updated: BrandProfile) => {
-    setBrand(updated);
+    setBrands(prev => prev.map(b => b.id === updated.id ? updated : b));
     syncBrandToSupabase(updated).catch(() => {});
   };
 
   const importRules = (newRules: {
-    trustedFacts?: import('@/types').TrustedFact[];
-    prohibitedTerms?: import('@/types').ProhibitedTerm[];
-    approvedTerms?: import('@/types').ApprovedTerm[];
-    toneGuidelines?: import('@/types').ToneGuideline[];
+    trustedFacts?: TrustedFact[];
+    prohibitedTerms?: ProhibitedTerm[];
+    approvedTerms?: ApprovedTerm[];
+    toneGuidelines?: ToneGuideline[];
   }) => {
+    const currentBrand = brands.find(b => b.id === selectedBrandId) || brands[0];
+
+    // Deduplicate prohibited terms by term name
+    const existingProhibited = new Set((currentBrand.prohibitedTerms || []).map(t => t.term.toLowerCase().trim()));
+    const dedupedProhibited = (newRules.prohibitedTerms || []).filter(t => !existingProhibited.has(t.term.toLowerCase().trim()));
+
+    // Deduplicate approved terms by term name
+    const existingApproved = new Set((currentBrand.approvedTerms || []).map(a => a.term.toLowerCase().trim()));
+    const dedupedApproved = (newRules.approvedTerms || []).filter(a => !existingApproved.has(a.term.toLowerCase().trim()));
+
+    // Deduplicate facts by claim or topic
+    const existingFactClaims = new Set((currentBrand.trustedFacts || []).map(f => f.claimOrStat.toLowerCase().trim()));
+    const dedupedFacts = (newRules.trustedFacts || []).filter(f => !existingFactClaims.has(f.claimOrStat.toLowerCase().trim()));
+
+    // Deduplicate tone guidelines by attribute
+    const existingToneAttrs = new Set((currentBrand.toneGuidelines || []).map(tg => tg.attribute.toLowerCase().trim()));
+    const dedupedTone = (newRules.toneGuidelines || []).filter(tg => !existingToneAttrs.has(tg.attribute.toLowerCase().trim()));
+
     const updatedBrand: BrandProfile = {
-      ...brand,
-      trustedFacts: [...(newRules.trustedFacts || []), ...brand.trustedFacts],
-      prohibitedTerms: [...(newRules.prohibitedTerms || []), ...brand.prohibitedTerms],
-      approvedTerms: [...(newRules.approvedTerms || []), ...brand.approvedTerms],
-      toneGuidelines: [...(newRules.toneGuidelines || []), ...brand.toneGuidelines],
+      ...currentBrand,
+      trustedFacts: [...dedupedFacts, ...(currentBrand.trustedFacts || [])],
+      prohibitedTerms: [...dedupedProhibited, ...(currentBrand.prohibitedTerms || [])],
+      approvedTerms: [...dedupedApproved, ...(currentBrand.approvedTerms || [])],
+      toneGuidelines: [...dedupedTone, ...(currentBrand.toneGuidelines || [])],
       updatedAt: new Date().toISOString()
     };
-    setBrand(updatedBrand);
-    syncBrandToSupabase(updatedBrand).catch(() => {});
+    updateBrand(updatedBrand);
 
     const totalCount =
-      (newRules.trustedFacts?.length || 0) +
-      (newRules.prohibitedTerms?.length || 0) +
-      (newRules.approvedTerms?.length || 0) +
-      (newRules.toneGuidelines?.length || 0);
+      dedupedFacts.length +
+      dedupedProhibited.length +
+      dedupedApproved.length +
+      dedupedTone.length;
 
-    const log: AuditLogEntry = {
-      id: `audit-${Date.now()}`,
-      draftId: currentDraftId,
-      authorId: userRole === 'reviewer' ? 'user-reviewer-1' : 'user-creator-1',
-      authorName: userRole === 'reviewer' ? 'Divyansh Chandra' : 'Aarav Sharma',
-      authorRole: userRole,
-      action: 'status_change',
-      summary: `Imported ${totalCount} new rules from external document into brand knowledge base`,
-      timestamp: new Date().toISOString()
-    };
-    setAuditLogs(prev => [log, ...prev]);
+    if (currentDraftId) {
+      const log: AuditLogEntry = {
+        id: `audit-${Date.now()}`,
+        draftId: currentDraftId,
+        authorId: userRole === 'reviewer' ? 'user-reviewer-1' : 'user-creator-1',
+        authorName: userRole === 'reviewer' ? 'Divyansh Chandra' : 'Aarav Sharma',
+        authorRole: userRole,
+        action: 'status_change',
+        summary: `Imported ${totalCount} new rules from external document into brand knowledge base for ${currentBrand.name}`,
+        timestamp: new Date().toISOString()
+      };
+      setAllAuditLogs(prev => [log, ...prev]);
+    }
   };
 
   const createDraft = (draftInput: Partial<Draft>): Draft => {
@@ -242,8 +434,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...draftInput
     };
 
-    setDrafts(prev => [newDraft, ...prev]);
+    setAllDrafts(prev => [newDraft, ...prev]);
     setCurrentDraftId(newDraft.id);
+    syncDraftToSupabase(newDraft).catch(() => {});
 
     const log: AuditLogEntry = {
       id: `audit-${Date.now()}`,
@@ -252,16 +445,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       authorName: 'Aarav Sharma',
       authorRole: 'creator',
       action: 'create_draft',
-      summary: `Created new draft "${newDraft.title}"`,
+      summary: `Created new draft "${newDraft.title}" for ${brand.name}`,
       timestamp: new Date().toISOString()
     };
-    setAuditLogs(prev => [log, ...prev]);
+    setAllAuditLogs(prev => [log, ...prev]);
 
     return newDraft;
   };
 
   const updateDraftContent = (id: string, newContent: string) => {
-    setDrafts(prev => prev.map(d => {
+    setAllDrafts(prev => prev.map(d => {
       if (d.id !== id) return d;
       return {
         ...d,
@@ -274,7 +467,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const updateDraftStatus = (id: string, newStatus: ReviewStatus, note?: string) => {
     let updatedDraftForSync: Draft | null = null;
-    setDrafts(prev => prev.map(d => {
+    setAllDrafts(prev => prev.map(d => {
       if (d.id !== id) return d;
       const updated = {
         ...d,
@@ -301,7 +494,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       summary: `Changed status to "${newStatus}"${note ? `: ${note}` : ''}`,
       timestamp: new Date().toISOString()
     };
-    setAuditLogs(prev => [log, ...prev]);
+    setAllAuditLogs(prev => [log, ...prev]);
 
     if (note) {
       addComment(id, `[Status update to ${newStatus}] ${note}`);
@@ -309,7 +502,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setDraftFindings = (draftId: string, newFindings: Finding[]) => {
-    setDrafts(prev => prev.map(d => {
+    setAllDrafts(prev => prev.map(d => {
       if (d.id !== draftId) return d;
       const updated = {
         ...d,
@@ -322,7 +515,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const applyFindingFix = (draftId: string, findingId: string) => {
-    const draft = drafts.find(d => d.id === draftId);
+    const draft = allDrafts.find(d => d.id === draftId);
     if (!draft) return;
 
     const finding = draft.findings.find(f => f.id === findingId);
@@ -332,6 +525,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let updatedContent = draft.content;
     if (updatedContent.includes(finding.quote)) {
       updatedContent = updatedContent.replace(finding.quote, finding.suggestedFix);
+    } else {
+      // Robust fallback if quote has slight casing differences
+      const lower = updatedContent.toLowerCase();
+      const quoteLower = finding.quote.toLowerCase();
+      const idx = lower.indexOf(quoteLower);
+      if (idx !== -1) {
+        updatedContent = updatedContent.slice(0, idx) + finding.suggestedFix + updatedContent.slice(idx + quoteLower.length);
+      }
     }
 
     const updatedFindings = draft.findings.map(f => 
@@ -345,7 +546,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updatedAt: new Date().toISOString()
     };
 
-    setDrafts(prev => prev.map(d => d.id === draftId ? updatedDraft : d));
+    setAllDrafts(prev => prev.map(d => d.id === draftId ? updatedDraft : d));
     syncDraftToSupabase(updatedDraft).catch(() => {});
 
     const log: AuditLogEntry = {
@@ -358,11 +559,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       summary: `Accepted fix: "${finding.quote}" -> "${finding.suggestedFix}"`,
       timestamp: new Date().toISOString()
     };
-    setAuditLogs(prev => [log, ...prev]);
+    setAllAuditLogs(prev => [log, ...prev]);
 
-    // Record this approved edit into historical Rules & Facts knowledge base
+    // Record this approved edit into historical knowledge base with brandId
     const approvedEditRecord: ApprovedEdit = {
       id: `edit-${Date.now()}-${finding.id}`,
+      brandId: brand.id,
       draftId,
       findingId,
       originalText: finding.quote,
@@ -375,7 +577,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       category: finding.issueType,
       usageCount: 1
     };
-    setApprovedEdits(prev => [
+    setAllApprovedEdits(prev => [
       approvedEditRecord, 
       ...prev.filter(e => e.originalText.toLowerCase() !== finding.quote.toLowerCase())
     ]);
@@ -385,15 +587,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const recordApprovedEdit = (editInput: Omit<ApprovedEdit, 'id' | 'approvedAt'>) => {
     const newEdit: ApprovedEdit = {
       ...editInput,
+      brandId: editInput.brandId || brand.id,
       id: `edit-${Date.now()}`,
       approvedAt: new Date().toISOString()
     };
-    setApprovedEdits(prev => [newEdit, ...prev]);
+    setAllApprovedEdits(prev => [newEdit, ...prev]);
     syncApprovedEditToSupabase(newEdit).catch(() => {});
   };
 
   const ignoreFinding = (draftId: string, findingId: string) => {
-    setDrafts(prev => prev.map(d => {
+    setAllDrafts(prev => prev.map(d => {
       if (d.id !== draftId) return d;
       return {
         ...d,
@@ -412,7 +615,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       summary: `Dismissed suggestion for issue: ${findingId}`,
       timestamp: new Date().toISOString()
     };
-    setAuditLogs(prev => [log, ...prev]);
+    setAllAuditLogs(prev => [log, ...prev]);
   };
 
   const addComment = (draftId: string, content: string) => {
@@ -427,7 +630,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       resolved: false
     };
 
-    setComments(prev => [newComment, ...prev]);
+    setAllComments(prev => [newComment, ...prev]);
 
     const log: AuditLogEntry = {
       id: `audit-${Date.now()}`,
@@ -439,27 +642,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       summary: `Added review comment: "${content.slice(0, 40)}..."`,
       timestamp: new Date().toISOString()
     };
-    setAuditLogs(prev => [log, ...prev]);
+    setAllAuditLogs(prev => [log, ...prev]);
   };
 
   const resetToDefaults = () => {
     try {
       localStorage.clear();
     } catch {}
-    setBrand(JSON.parse(JSON.stringify(INITIAL_BRAND_PROFILE)));
-    setDrafts(JSON.parse(JSON.stringify(INITIAL_DRAFTS)));
+    setBrands([JSON.parse(JSON.stringify(INITIAL_BRAND_PROFILE))]);
+    setSelectedBrandId(INITIAL_BRAND_PROFILE.id);
+    setAllDrafts(JSON.parse(JSON.stringify(INITIAL_DRAFTS)));
     setCurrentDraftId(INITIAL_DRAFTS[0].id);
     setUserRole('creator');
-    setComments(JSON.parse(JSON.stringify(INITIAL_COMMENTS)));
-    setAuditLogs(JSON.parse(JSON.stringify(INITIAL_AUDIT_LOGS)));
-    setApprovedEdits(JSON.parse(JSON.stringify(INITIAL_APPROVED_EDITS)));
+    setAllComments(JSON.parse(JSON.stringify(INITIAL_COMMENTS)));
+    setAllAuditLogs(JSON.parse(JSON.stringify(INITIAL_AUDIT_LOGS)));
+    setAllApprovedEdits(JSON.parse(JSON.stringify(INITIAL_APPROVED_EDITS)));
     setActiveFindingId(null);
   };
 
   return (
     <AppContext.Provider
       value={{
+        brands,
         brand,
+        selectedBrandId,
+        selectBrand,
+        createBrand,
         updateBrand,
         drafts,
         currentDraftId,

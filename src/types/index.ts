@@ -66,6 +66,21 @@ export interface BrandProfile {
 }
 
 /**
+ * Evidence Citation Schema for RAG Pipeline
+ */
+export interface EvidenceCitation {
+  id: string;
+  type: 'rule' | 'fact' | 'historical_edit';
+  title: string;
+  sourceDoc?: string;
+  pageNumber?: number;
+  verifiedDate?: string;
+  snippet: string;
+  relevanceScore: number; // 0.0 to 1.0 ranking score
+  reasoning?: string;
+}
+
+/**
  * Finding / Violation Schema
  */
 export interface Finding {
@@ -84,6 +99,7 @@ export interface Finding {
   detectedBy: 'deterministic' | 'ai';
   category?: string;
   evidenceType?: 'official_rule' | 'official_fact' | 'unverified_claim';
+  evidence?: EvidenceCitation[]; // Structured ground-truth citations retrieved for this finding
   createdAt: string;
 }
 
@@ -139,6 +155,7 @@ export interface DraftComment {
  */
 export interface ApprovedEdit {
   id: string;
+  brandId?: string;
   draftId: string;
   findingId?: string;
   originalText: string;

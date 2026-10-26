@@ -56,7 +56,7 @@ async function extractTextFromPdf(buffer: Buffer): Promise<{ pages: PdfPage[]; t
 
 export async function POST(req: NextRequest) {
   try {
-    const contentType = req.headers.get('content-type') || '';
+    const contentType = (typeof req.headers?.get === 'function' ? req.headers.get('content-type') : (req.headers as any)?.['content-type']) || '';
     let rawText = '';
     let fileName = 'pasted-guideline.txt';
     let fileType = 'text';
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       const file = formData.get('file') as File | null;
 
       if (!file) {
-        return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400 });
       }
 
       fileName = file.name;
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!rawText.trim()) {
-      return NextResponse.json({ error: 'Extracted content is empty' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Extracted content is empty' }, { status: 400 });
     }
 
     // Parsing extracted text with page number provenance
@@ -255,6 +255,26 @@ function parseTextIntoRules(pages: PdfPage[], fileName: string, fileType: string
     lines.forEach((line, index) => {
       const lower = line.toLowerCase();
 
+      // Tone & Voice Guidelines
+      if (
+        lower.startsWith('tone:') ||
+        lower.startsWith('voice:') ||
+        lower.includes('voice pillar') ||
+        lower.includes('tone pillar') ||
+        lower.includes('voice attribute')
+      ) {
+        const cleanLine = line.replace(/^(voice\s*pillar|tone\s*pillar|voice\s*attribute|tone\s*attribute|voice|tone)[:\s-]*/i, '').trim();
+        result.toneGuidelines.push({
+          attribute: cleanLine.split(/[-:–]/)[0]?.trim() || 'Imported Tone Guideline',
+          description: cleanLine,
+          doExample: 'Clear and grounded statements.',
+          dontExample: 'Sensational claims.',
+          sourceDoc: fileName,
+          pageNumber: page.pageNumber
+        });
+        return;
+      }
+
       // Prohibited terms
       if (
         lower.includes('prohibited') ||
@@ -316,45 +336,9 @@ function parseTextIntoRules(pages: PdfPage[], fileName: string, fileType: string
         });
         return;
       }
-
-      // Tone
-      if (
-        lower.startsWith('tone:') ||
-        lower.startsWith('voice:') ||
-        lower.includes('voice pillar') ||
-        lower.includes('tone pillar') ||
-        lower.includes('voice attribute')
-      ) {
-        const cleanLine = line.replace(/^(tone|voice|pillar|attribute)[:\s-]*/i, '');
-        result.toneGuidelines.push({
-          attribute: cleanLine.split(/[-:–]/)[0]?.trim() || 'Imported Tone Guideline',
-          description: cleanLine,
-          doExample: 'Clear and grounded statements.',
-          dontExample: 'Sensational claims.',
-          sourceDoc: fileName,
-          pageNumber: page.pageNumber
-        });
-      }
     });
   });
 
-  // If no items were detected, create a fallback fact with page context
-  if (
-    result.trustedFacts.length === 0 &&
-    result.prohibitedTerms.length === 0 &&
-    result.approvedTerms.length === 0 &&
-    result.toneGuidelines.length === 0
-  ) {
-    result.trustedFacts.push({
-      id: `fact-ext-${Date.now()}-general`,
-      topic: 'General Guideline',
-      claimOrStat: pages[0]?.text.slice(0, 280) || 'Extracted document content',
-      source: `${fileName} (Page 1)`,
-      verifiedDate: new Date().toISOString().split('T')[0],
-      sourceDoc: fileName,
-      pageNumber: 1
-    });
-  }
-
+  // Return pure extracted rules without synthesizing unsupported fallback facts
   return result;
 }
