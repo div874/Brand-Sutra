@@ -128,6 +128,16 @@ function createSimulatedStore() {
     getBrandApprovedEdits,
     selectBrand,
     createBrand,
+    deleteBrand: (id) => {
+      if (brands.length <= 1) return false;
+      brands = brands.filter(b => b.id !== id);
+      if (selectedBrandId === id) {
+        selectedBrandId = brands[0].id;
+      }
+      allDrafts = allDrafts.filter(d => d.brandId !== id);
+      allApprovedEdits = allApprovedEdits.filter(e => e.brandId !== id);
+      return true;
+    },
     createDraftForActiveBrand,
     addRuleToActiveBrand,
     persistAll,
@@ -230,8 +240,22 @@ async function runTests() {
   assert(refreshedEcho.prohibitedTerms.length >= 6, 'EchoStream rules survive refresh intact');
   assert(refreshedNova.trustedFacts.length === 1, 'Nova Acoustics rules survive refresh intact');
 
+  // --- TEST 6: REMOVE BRAND & FALLBACK SWITCH ---
+  console.log('\n--- TEST 6: REMOVE BRAND WORKSPACE ---');
+  const removed = store.deleteBrand(novaBrand.id);
+  assert(removed === true, 'Successfully removed Nova Acoustics brand');
+  assert(store.brands.length === 1, 'Brand count reduced to 1');
+  assert(!store.brands.some(b => b.id === novaBrand.id), 'Nova Acoustics no longer exists in brands list');
+  assert(store.selectedBrandId === echostream.id, 'Active brand automatically switched to remaining brand (EchoStream)');
+  assert(store.getBrandDrafts(novaBrand.id).length === 0, 'Associated drafts for removed brand were deleted');
+
+  // Safeguard: Cannot delete the last remaining brand
+  const cannotDeleteLast = store.deleteBrand(echostream.id);
+  assert(cannotDeleteLast === false, 'Safeguard prevents deleting the last remaining brand workspace');
+  assert(store.brands.length === 1, 'Brand count stays at 1');
+
   console.log('\n================================================================');
-  console.log('ALL BRAND SELECTION & DATA ISOLATION TESTS PASSED!');
+  console.log('ALL BRAND SELECTION, ISOLATION & REMOVAL TESTS PASSED!');
   console.log('================================================================');
 }
 

@@ -91,10 +91,23 @@ export async function POST(req: NextRequest) {
     // 3. Fallback to deterministic hybrid analysis if Groq API key is not configured
     if (!groqApiKey) {
       const fallbackFindings = analyzeDraftContent(draftId, content, brand, edits);
+      for (const f of fallbackFindings) {
+        if (f.evidence) {
+          for (const ev of f.evidence) {
+            if (!evidenceMap.has(ev.id)) {
+              evidenceMap.set(ev.id, ev);
+              allRetrievedEvidence.push(ev);
+            }
+          }
+        }
+      }
       return NextResponse.json<AuditApiResponse>({
         outcome: fallbackFindings.length > 0 ? 'EVALUATED' : 'CLEAN',
         summary: `Deterministic Engine Fallback: Evaluated using local rule engine (${fallbackFindings.length} issues identified).`,
-        findings: fallbackFindings.map(f => ({ ...f, detectedBy: 'deterministic' as const })),
+        findings: fallbackFindings.map(f => {
+          const topCitationId = f.evidence?.[0]?.id || f.ruleId;
+          return { ...f, ruleId: topCitationId, detectedBy: 'deterministic' as const };
+        }),
         retrievedEvidence: allRetrievedEvidence,
         modelUsed: 'deterministic-fallback',
         isFallback: true

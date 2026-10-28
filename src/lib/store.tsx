@@ -31,6 +31,7 @@ import {
   fetchRemoteStateFromSupabase,
   SupabaseSyncStatus
 } from './supabase-sync';
+import { supabase } from './supabase';
 
 interface AppContextType {
   brands: BrandProfile[];
@@ -39,6 +40,7 @@ interface AppContextType {
   selectBrand: (id: string) => void;
   createBrand: (input: { name: string; description?: string }) => BrandProfile;
   updateBrand: (updated: BrandProfile) => void;
+  deleteBrand: (id: string) => boolean;
   drafts: Draft[];
   currentDraftId: string;
   currentDraft: Draft | undefined;
@@ -47,6 +49,7 @@ interface AppContextType {
   updateDraftContent: (id: string, content: string) => void;
   updateDraftStatus: (id: string, status: ReviewStatus, note?: string) => void;
   applyFindingFix: (draftId: string, findingId: string) => void;
+  applyAllFindingFixes: (draftId: string) => number;
   ignoreFinding: (draftId: string, findingId: string) => void;
   setDraftFindings: (draftId: string, findings: Finding[]) => void;
   userRole: UserRole;
@@ -125,7 +128,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (status.tablesReady) {
       const remote = await fetchRemoteStateFromSupabase();
       if (remote) {
-        if (remote.brand) {
+        if (remote.brands && remote.brands.length > 0) {
+          setBrands(prev => {
+            const merged = [...prev];
+            for (const rb of remote.brands!) {
+              const idx = merged.findIndex(b => b.id === rb.id);
+              if (idx >= 0) {
+                merged[idx] = rb;
+              } else {
+                merged.push(rb);
+              }
+            }
+            return merged;
+          });
+        } else if (remote.brand) {
           setBrands(prev => {
             const exists = prev.some(b => b.id === remote.brand!.id);
             if (exists) {
@@ -361,6 +377,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     syncBrandToSupabase(updated).catch(() => {});
   };
 
+  const deleteBrand = (id: string): boolean => {
+    if (brands.length <= 1) {
+      return false;
+    }
+
+    const remainingBrands = brands.filter(b => b.id !== id);
+    setBrands(remainingBrands);
+
+    if (selectedBrandId === id) {
+      const nextBrand = remainingBrands[0];
+      setSelectedBrandId(nextBrand.id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.SELECTED_BRAND_ID, nextBrand.id);
+      } catch {}
+      const nextDrafts = allDrafts.filter(d => d.brandId === nextBrand.id);
+      setCurrentDraftId(nextDrafts[0]?.id || '');
+    }
+
+    setAllDrafts(prev => prev.filter(d => d.brandId !== id));
+    setAllApprovedEdits(prev => prev.filter(e => e.brandId !== id));
+
+    if (supabase) {
+      Promise.allSettled([
+        supabase.from('brands').delete().eq('id', id),
+        supabase.from('trusted_facts').delete().eq('brand_id', id),
+        supabase.from('terminology_rules').delete().eq('brand_id', id),
+        supabase.from('tone_guidelines').delete().eq('brand_id', id),
+        supabase.from('drafts').delete().eq('brand_id', id)
+      ]).catch(() => {});
+    }
+
+    return true;
+  };
+
   const importRules = (newRules: {
     trustedFacts?: TrustedFact[];
     prohibitedTerms?: ProhibitedTerm[];
@@ -584,6 +634,83 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     syncApprovedEditToSupabase(approvedEditRecord).catch(() => {});
   };
 
+  const applyAllFindingFixes = (draftId: string): number => {
+    const draft = allDrafts.find(d => d.id === draftId);
+    if (!draft) return 0;
+
+    const pendingWithFix = draft.findings.filter(f => f.status === 'Pending' && f.suggestedFix && f.suggestedFix.trim());
+    if (pendingWithFix.length === 0) return 0;
+
+    // Sort descending by startIndex so earlier string offsets aren't corrupted by replacements
+    const sorted = [...pendingWithFix].sort((a, b) => b.startIndex - a.startIndex);
+
+    let updatedContent = draft.content;
+    const newApprovedEdits: ApprovedEdit[] = [];
+
+    for (const f of sorted) {
+      if (updatedContent.includes(f.quote)) {
+        updatedContent = updatedContent.replace(f.quote, f.suggestedFix);
+      } else {
+        const lower = updatedContent.toLowerCase();
+        const quoteLower = f.quote.toLowerCase();
+        const idx = lower.indexOf(quoteLower);
+        if (idx !== -1) {
+          updatedContent = updatedContent.slice(0, idx) + f.suggestedFix + updatedContent.slice(idx + quoteLower.length);
+        }
+      }
+
+      newApprovedEdits.push({
+        id: `edit-${Date.now()}-${f.id}`,
+        brandId: brand.id,
+        draftId,
+        findingId: f.id,
+        originalText: f.quote,
+        approvedChange: f.suggestedFix,
+        reason: f.explanation,
+        relatedRuleOrFact: f.sourceLink || 'Brand Guideline',
+        approvedBy: userRole === 'reviewer' ? 'Divyansh Chandra (Brand Lead)' : 'Aarav Sharma (Creator)',
+        approvedByRole: userRole,
+        approvedAt: new Date().toISOString(),
+        category: f.issueType,
+        usageCount: 1
+      });
+    }
+
+    const appliedIds = new Set(pendingWithFix.map(f => f.id));
+    const updatedFindings = draft.findings.map(f => 
+      appliedIds.has(f.id) ? { ...f, status: 'Accepted' as const } : f
+    );
+
+    const updatedDraft = {
+      ...draft,
+      content: updatedContent,
+      findings: updatedFindings,
+      updatedAt: new Date().toISOString()
+    };
+
+    setAllDrafts(prev => prev.map(d => d.id === draftId ? updatedDraft : d));
+    syncDraftToSupabase(updatedDraft).catch(() => {});
+
+    setAllApprovedEdits(prev => [...newApprovedEdits, ...prev]);
+    for (const e of newApprovedEdits) {
+      syncApprovedEditToSupabase(e).catch(() => {});
+    }
+
+    const log: AuditLogEntry = {
+      id: `audit-${Date.now()}`,
+      draftId,
+      authorId: userRole === 'reviewer' ? 'user-reviewer-1' : 'user-creator-1',
+      authorName: userRole === 'reviewer' ? 'Divyansh Chandra' : 'Aarav Sharma',
+      authorRole: userRole,
+      action: 'apply_fix',
+      summary: `Batch applied ${pendingWithFix.length} safe fixes automatically`,
+      timestamp: new Date().toISOString()
+    };
+    setAllAuditLogs(prev => [log, ...prev]);
+
+    return pendingWithFix.length;
+  };
+
   const recordApprovedEdit = (editInput: Omit<ApprovedEdit, 'id' | 'approvedAt'>) => {
     const newEdit: ApprovedEdit = {
       ...editInput,
@@ -669,6 +796,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         selectBrand,
         createBrand,
         updateBrand,
+        deleteBrand,
         drafts,
         currentDraftId,
         currentDraft,
@@ -677,6 +805,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateDraftContent,
         updateDraftStatus,
         applyFindingFix,
+        applyAllFindingFixes,
         ignoreFinding,
         setDraftFindings,
         userRole,

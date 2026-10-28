@@ -13,14 +13,17 @@ import {
   Sparkles,
   X,
   Search,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
+import type { BrandProfile } from '@/types';
 
 export default function HomePage() {
   const router = useRouter();
-  const { brands, selectedBrandId, selectBrand, createBrand, drafts } = useApp();
+  const { brands, selectedBrandId, selectBrand, createBrand, deleteBrand, drafts } = useApp();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [brandToDelete, setBrandToDelete] = useState<BrandProfile | null>(null);
   const [newBrandName, setNewBrandName] = useState('');
   const [newBrandDesc, setNewBrandDesc] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -143,15 +146,32 @@ export default function HomePage() {
                       {b.name.charAt(0).toUpperCase()}
                     </div>
 
-                    {isSelected ? (
-                      <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/50 px-2 py-0.5 rounded-full">
-                        <Check className="w-3 h-3" /> Active Workspace
-                      </span>
-                    ) : (
-                      <span className="text-[11px] text-[#737373] group-hover:text-white transition-colors flex items-center gap-1">
-                        Select <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {isSelected ? (
+                        <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/50 px-2 py-0.5 rounded-full">
+                          <Check className="w-3 h-3" /> Active Workspace
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-[#737373] group-hover:text-white transition-colors flex items-center gap-1">
+                          Select <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+                        </span>
+                      )}
+
+                      {brands.length > 1 && (
+                        <button
+                          id={`btn-delete-brand-${b.id}`}
+                          type="button"
+                          title={`Remove brand workspace "${b.name}"`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBrandToDelete(b);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-[#737373] hover:text-rose-400 hover:bg-rose-950/40 border border-transparent hover:border-rose-900/40 transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Brand Name & Description */}
@@ -284,6 +304,45 @@ export default function HomePage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Remove Brand Confirmation Modal */}
+      {brandToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-[#121212] border border-[#2a2a2a] rounded-xl p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-rose-950/50 border border-rose-800/60 flex items-center justify-center text-rose-400 shrink-0 mt-0.5">
+                <Trash2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">Remove Brand Workspace?</h3>
+                <p className="text-xs text-[#8a8a8a] mt-1 leading-relaxed">
+                  This will permanently remove <strong className="text-white">{brandToDelete.name}</strong> and delete all its associated rules, verified facts, and draft copy.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#222]">
+              <button
+                type="button"
+                onClick={() => setBrandToDelete(null)}
+                className="px-3 py-1.5 text-xs text-[#d4d4d4] bg-[#1a1a1a] hover:bg-[#262626] border border-[#333] rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                id="btn-confirm-delete-brand"
+                type="button"
+                onClick={() => {
+                  deleteBrand(brandToDelete.id);
+                  setBrandToDelete(null);
+                }}
+                className="px-3.5 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 rounded transition-colors shadow-sm"
+              >
+                Remove Brand
+              </button>
+            </div>
           </div>
         </div>
       )}

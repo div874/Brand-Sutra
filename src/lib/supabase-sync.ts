@@ -248,6 +248,7 @@ export async function syncAuditLogToSupabase(log: AuditLogEntry): Promise<boolea
  */
 export async function fetchRemoteStateFromSupabase(): Promise<{
   brand?: BrandProfile;
+  brands?: BrandProfile[];
   approvedEdits?: ApprovedEdit[];
   drafts?: Draft[];
   auditLogs?: AuditLogEntry[];
@@ -258,7 +259,7 @@ export async function fetchRemoteStateFromSupabase(): Promise<{
     if (!status.tablesReady) return null;
 
     const [brandRes, factsRes, termRes, toneRes, editsRes, draftsRes, findingsRes, auditRes] = await Promise.all([
-      supabase.from('brands').select('*').limit(1),
+      supabase.from('brands').select('*'),
       supabase.from('trusted_facts').select('*'),
       supabase.from('terminology_rules').select('*'),
       supabase.from('tone_guidelines').select('*'),
@@ -272,64 +273,76 @@ export async function fetchRemoteStateFromSupabase(): Promise<{
       return null;
     }
 
-    const brandData = brandRes.data[0];
-    const facts = (factsRes.data || []).map(f => ({
-      id: f.id,
-      topic: f.topic,
-      claimOrStat: f.claim_or_stat,
-      source: f.source,
-      sourceUrl: f.source_url || undefined,
-      verifiedDate: f.verified_date,
-      sourceDoc: f.source_doc || undefined,
-      pageNumber: f.page_number || undefined
-    }));
+    const allBrandsData = brandRes.data;
+    const allFactsData = factsRes.data || [];
+    const allTermsData = termRes.data || [];
+    const allToneData = toneRes.data || [];
 
-    const prohibitedTerms = (termRes.data || [])
-      .filter(t => t.is_prohibited)
-      .map(t => ({
-        id: t.id,
-        term: t.term,
-        reason: t.reason || '',
-        suggestedAlternative: t.suggested_alternative || '',
-        severity: (t.severity || 'medium') as 'high' | 'medium' | 'low',
-        category: t.category || 'Vocabulary',
-        sourceDoc: t.source_doc || undefined,
-        pageNumber: t.page_number || undefined
-      }));
+    const brands: BrandProfile[] = allBrandsData.map(b => {
+      const facts = allFactsData
+        .filter(f => f.brand_id === b.id)
+        .map(f => ({
+          id: f.id,
+          topic: f.topic,
+          claimOrStat: f.claim_or_stat,
+          source: f.source,
+          sourceUrl: f.source_url || undefined,
+          verifiedDate: f.verified_date,
+          sourceDoc: f.source_doc || undefined,
+          pageNumber: f.page_number || undefined
+        }));
 
-    const approvedTerms: import('@/types').ApprovedTerm[] = (termRes.data || [])
-      .filter(t => !t.is_prohibited)
-      .map(t => ({
-        id: t.id,
-        term: t.term,
-        preferredUsage: t.reason || '',
-        category: t.category || 'Approved Term',
-        sourceDoc: t.source_doc || undefined,
-        pageNumber: t.page_number || undefined
-      }));
+      const prohibitedTerms = allTermsData
+        .filter(t => t.brand_id === b.id && t.is_prohibited)
+        .map(t => ({
+          id: t.id,
+          term: t.term,
+          reason: t.reason || '',
+          suggestedAlternative: t.suggested_alternative || '',
+          severity: (t.severity || 'medium') as 'high' | 'medium' | 'low',
+          category: t.category || 'Vocabulary',
+          sourceDoc: t.source_doc || undefined,
+          pageNumber: t.page_number || undefined
+        }));
 
-    const toneGuidelines: import('@/types').ToneGuideline[] = (toneRes.data || []).map(tg => ({
-      attribute: tg.attribute,
-      description: tg.description,
-      doExample: tg.do_example,
-      dontExample: tg.dont_example,
-      sourceDoc: tg.source_doc || undefined,
-      pageNumber: tg.page_number || undefined
-    }));
+      const approvedTerms: import('@/types').ApprovedTerm[] = allTermsData
+        .filter(t => t.brand_id === b.id && !t.is_prohibited)
+        .map(t => ({
+          id: t.id,
+          term: t.term,
+          preferredUsage: t.reason || '',
+          category: t.category || 'Approved Term',
+          sourceDoc: t.source_doc || undefined,
+          pageNumber: t.page_number || undefined
+        }));
 
-    const fullBrand: BrandProfile = {
-      id: brandData.id,
-      name: brandData.name,
-      tagline: brandData.tagline || '',
-      description: brandData.description || '',
-      voiceSummary: brandData.voice_summary,
-      toneGuidelines,
-      prohibitedTerms,
-      approvedTerms,
-      trustedFacts: facts,
-      createdAt: brandData.created_at || new Date().toISOString(),
-      updatedAt: brandData.updated_at
-    };
+      const toneGuidelines: import('@/types').ToneGuideline[] = allToneData
+        .filter(tg => tg.brand_id === b.id)
+        .map(tg => ({
+          attribute: tg.attribute,
+          description: tg.description,
+          doExample: tg.do_example,
+          dontExample: tg.dont_example,
+          sourceDoc: tg.source_doc || undefined,
+          pageNumber: tg.page_number || undefined
+        }));
+
+      return {
+        id: b.id,
+        name: b.name,
+        tagline: b.tagline || '',
+        description: b.description || '',
+        voiceSummary: b.voice_summary,
+        toneGuidelines,
+        prohibitedTerms,
+        approvedTerms,
+        trustedFacts: facts,
+        createdAt: b.created_at || new Date().toISOString(),
+        updatedAt: b.updated_at
+      };
+    });
+
+    const fullBrand = brands[0];
 
     const allFindings = findingsRes.data || [];
     const drafts: Draft[] = (draftsRes.data || []).map(d => {
@@ -412,6 +425,7 @@ export async function fetchRemoteStateFromSupabase(): Promise<{
 
     return {
       brand: fullBrand,
+      brands: brands.length > 0 ? brands : undefined,
       drafts: drafts.length > 0 ? drafts : undefined,
       approvedEdits: approvedEdits.length > 0 ? approvedEdits : undefined,
       auditLogs: auditLogs.length > 0 ? auditLogs : undefined

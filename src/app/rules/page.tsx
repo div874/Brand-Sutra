@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/store';
 import { 
   CheckCircle2, 
@@ -22,8 +23,10 @@ import { TrustedFact, ProhibitedTerm, ApprovedTerm, ToneGuideline } from '@/type
 import { isSupabaseConfigured } from '@/lib/supabase';
 
 export default function RulesPage() {
-  const { brand, approvedEdits, importRules } = useApp();
+  const router = useRouter();
+  const { brand, brands, approvedEdits, importRules, deleteBrand } = useApp();
   const [tab, setTab] = useState<'facts' | 'terms' | 'tone' | 'edits'>('facts');
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   // Ingestion Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -335,21 +338,37 @@ export default function RulesPage() {
           </p>
         </div>
 
-        {/* Add Rules Button */}
-        <button
-          id="btn-open-ingest-modal"
-          type="button"
-          onClick={() => {
-            setIsModalOpen(true);
-            setHasExtractedPreview(false);
-            setErrorMessage(null);
-            setOcrWarning(null);
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-black bg-white hover:bg-[#d4d4d4] rounded transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Add / Ingest Rules</span>
-        </button>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          {brands.length > 1 && (
+            <button
+              id="btn-remove-brand-rules"
+              type="button"
+              onClick={() => setIsDeleteConfirmOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#a3a3a3] hover:text-rose-400 bg-[#141414] hover:bg-rose-950/30 border border-[#262626] hover:border-rose-900/40 rounded transition-colors"
+              title={`Remove brand workspace "${brand.name}"`}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Remove Brand</span>
+            </button>
+          )}
+
+          {/* Add Rules Button */}
+          <button
+            id="btn-open-ingest-modal"
+            type="button"
+            onClick={() => {
+              setIsModalOpen(true);
+              setHasExtractedPreview(false);
+              setErrorMessage(null);
+              setOcrWarning(null);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-black bg-white hover:bg-[#d4d4d4] rounded transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add / Ingest Rules</span>
+          </button>
+        </div>
       </div>
 
       {/* Minimal Tab Switcher */}
@@ -1209,6 +1228,46 @@ export default function RulesPage() {
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* Remove Brand Confirmation Modal */}
+      {isDeleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-[#121212] border border-[#2a2a2a] rounded-xl p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-rose-950/50 border border-rose-800/60 flex items-center justify-center text-rose-400 shrink-0 mt-0.5">
+                <Trash2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">Remove Brand Workspace?</h3>
+                <p className="text-xs text-[#8a8a8a] mt-1 leading-relaxed">
+                  Permanently remove <strong className="text-white">{brand.name}</strong> and delete all its associated rules, verified facts, and draft copy?
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#222]">
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="px-3 py-1.5 text-xs text-[#d4d4d4] bg-[#1a1a1a] hover:bg-[#262626] border border-[#333] rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                id="btn-confirm-delete-brand-rules"
+                type="button"
+                onClick={() => {
+                  deleteBrand(brand.id);
+                  setIsDeleteConfirmOpen(false);
+                  router.push('/');
+                }}
+                className="px-3.5 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 rounded transition-colors shadow-sm"
+              >
+                Remove Brand
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -222,6 +222,10 @@ export function retrieveRelevantEvidence(
   return candidates.slice(0, topK);
 }
 
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Contextual Retrieval Engine:
  * Analyzes draft content against Official Evidence (facts, rules) while keeping
@@ -235,15 +239,27 @@ export function analyzeDraftContent(
   approvedEdits: ApprovedEdit[]
 ): EvaluatedFinding[] {
   const findings: EvaluatedFinding[] = [];
-  const lowerContent = content.toLowerCase();
 
-  // 1. Check Prohibited Terms (Official Rules)
+  // 1. Check Prohibited Terms (Official Rules) with word boundaries and multi-occurrence
   brand.prohibitedTerms.forEach((rule) => {
-    const termLower = rule.term.toLowerCase();
-    const index = lowerContent.indexOf(termLower);
+    if (!rule.term || !rule.term.trim()) return;
+    const termClean = rule.term.trim();
+    const termEscaped = escapeRegExp(termClean);
+    // Word boundary or non-alphanumeric boundary with lookahead to prevent swallowing trailing space
+    const regex = new RegExp(`(^|[^a-zA-Z0-9])(${termEscaped})(?=[^a-zA-Z0-9]|$)`, 'gi');
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+      const prefixOffset = match[1].length;
+      const index = match.index + prefixOffset;
+      const quote = match[2];
 
-    if (index !== -1) {
+      // Avoid duplicate finding if identical index already registered for this rule
+      if (findings.some(f => f.startIndex === index && f.ruleId === `cite-rule-${rule.id}`)) {
+        continue;
+      }
+
       // Find matching historical precedent if available
+      const termLower = termClean.toLowerCase();
       const matchingPrecedent = approvedEdits.find(e => 
         e.originalText.toLowerCase().includes(termLower) || 
         termLower.includes(e.originalText.toLowerCase())
@@ -251,7 +267,7 @@ export function analyzeDraftContent(
 
       // Extract surrounding context (sentence or snippet)
       const contextStart = Math.max(0, content.lastIndexOf('.', index) + 1);
-      const contextEnd = content.indexOf('.', index + rule.term.length);
+      const contextEnd = content.indexOf('.', index + quote.length);
       const snippetContext = content.slice(
         contextStart, 
         contextEnd !== -1 ? contextEnd + 1 : content.length
@@ -259,15 +275,15 @@ export function analyzeDraftContent(
 
       // Retrieve and rank all relevant evidence for this flagged clause
       const retrievedEvidence = retrieveRelevantEvidence(
-        snippetContext || rule.term,
+        snippetContext || termClean,
         brand,
         approvedEdits,
         { topK: 3, minScore: 0.45 }
       );
 
-      // Ensure the direct rule citation is at the top of the evidence list
+      // Direct rule citation
       const directRuleCitation: EvidenceCitation = {
-        id: `cite-primary-rule-${rule.id}`,
+        id: `cite-rule-${rule.id}`,
         type: 'rule',
         title: `Prohibited Term: "${rule.term}"`,
         sourceDoc: rule.sourceDoc || 'Brand Voice & Terminology Guide',
@@ -287,12 +303,12 @@ export function analyzeDraftContent(
         draftId,
         issueType: 'Terminology',
         severity: rule.severity || 'medium',
-        quote: content.slice(index, index + rule.term.length),
+        quote,
         startIndex: index,
-        endIndex: index + rule.term.length,
+        endIndex: index + quote.length,
         explanation: rule.reason,
         sourceLink: `Official Brand Rule: ${rule.sourceDoc ? `${rule.sourceDoc} (p.${rule.pageNumber || 1})` : 'Terminology Guideline'}`,
-        ruleId: rule.id,
+        ruleId: directRuleCitation.id,
         suggestedFix: rule.suggestedAlternative,
         status: 'Pending',
         detectedBy: 'deterministic',
@@ -329,7 +345,7 @@ export function analyzeDraftContent(
 
     // Primary Fact citation
     const primaryFactCitation: EvidenceCitation = {
-      id: `cite-fact-primary-${factRef?.id || 'recycled'}`,
+      id: `cite-fact-${factRef?.id || 'recycled'}`,
       type: 'fact',
       title: `Verified Fact: ${factRef?.topic || 'Recycled Materials'}`,
       sourceDoc: factRef?.sourceDoc || factRef?.source || 'Official GRS Audit Certificate',
@@ -342,7 +358,7 @@ export function analyzeDraftContent(
 
     const finalEvidence = [
       primaryFactCitation,
-      ...retrievedEvidence.filter(e => e.id !== `cite-fact-${factRef?.id}`)
+      ...retrievedEvidence.filter(e => e.id !== primaryFactCitation.id)
     ].slice(0, 3);
 
     findings.push({
@@ -355,7 +371,7 @@ export function analyzeDraftContent(
       endIndex: matchRecycled.index + quote.length,
       explanation: 'Overstates verified recycled content: Product is certified as 80% post-consumer recycled plastic and 20% virgin structural resin.',
       sourceLink: factRef ? `${factRef.source} (Verified ${factRef.verifiedDate})` : 'Official GRS Audit Certificate',
-      ruleId: factRef?.id,
+      ruleId: primaryFactCitation.id,
       suggestedFix: 'crafted with 80% certified post-consumer recycled plastic',
       status: 'Pending',
       detectedBy: 'deterministic',
@@ -384,7 +400,7 @@ export function analyzeDraftContent(
     );
 
     const primaryFactCitation: EvidenceCitation = {
-      id: `cite-fact-primary-${factRef?.id || 'battery'}`,
+      id: `cite-fact-${factRef?.id || 'battery'}`,
       type: 'fact',
       title: `Verified Fact: ${factRef?.topic || 'Battery Life Benchmark'}`,
       sourceDoc: factRef?.sourceDoc || factRef?.source || 'Hardware Lab Protocol v2.4',
@@ -397,7 +413,7 @@ export function analyzeDraftContent(
 
     const finalEvidence = [
       primaryFactCitation,
-      ...retrievedEvidence.filter(e => e.id !== `cite-fact-${factRef?.id}`)
+      ...retrievedEvidence.filter(e => e.id !== primaryFactCitation.id)
     ].slice(0, 3);
 
     findings.push({
@@ -410,7 +426,7 @@ export function analyzeDraftContent(
       endIndex: matchBattery.index + quote.length,
       explanation: 'Exceeds official lab benchmark: Verified battery life is up to 48 hours (ANC off) and 36 hours (ANC on). Contradicts engineering test specifications.',
       sourceLink: factRef ? `${factRef.source}` : 'Hardware Lab Protocol v2.4',
-      ruleId: factRef?.id,
+      ruleId: primaryFactCitation.id,
       suggestedFix: 'up to 48 hours of tested battery life',
       status: 'Pending',
       detectedBy: 'deterministic',
@@ -453,6 +469,7 @@ export function analyzeDraftContent(
       endIndex: matchSuperlative.index + quote.length,
       explanation: 'Superlative comparative claim lacks independent market substantiation. Must cite audited third-party benchmark before publishing.',
       sourceLink: 'Requires Independent Market Data Verification',
+      ruleId: citation.id,
       suggestedFix: 'designed to minimize environmental footprint',
       status: 'Pending',
       detectedBy: 'deterministic',

@@ -125,6 +125,31 @@ facts:
   assert(data6.extracted.trustedFacts.length === 0, 'No accidental fake trusted facts created when text contains no facts', `Found ${data6.extracted.trustedFacts.length} facts`);
   assert(data6.extracted.prohibitedTerms.length === 0, 'No accidental prohibited terms created when text contains no rules', `Found ${data6.extracted.prohibitedTerms.length} terms`);
 
+  // 7. Full wording, apostrophe preservation & empty alternative when none provided
+  console.log('\n--- TEST 7: EXACT WORDING WITH APOSTROPHE & EMPTY ALTERNATIVE ---');
+  const exactWordingText = [
+    '## Prohibited Claims Section',
+    'RULE BR-01: Prohibited Marketing Claims',
+    '- Never say "the world\'s best skincare" because absolute superlatives cannot be clinically substantiated.',
+    '- Do not use this phrase as a product claim without clinical evidence.',
+    '- Approved Term: "Bio-Renewal Complex"'
+  ].join('\n');
+
+  const req7 = {
+    formData: async () => { throw new Error('Not form data'); },
+    json: async () => ({ text: exactWordingText, format: 'text' })
+  };
+  const res7 = await POST(req7);
+  const data7 = await res7.json();
+
+  assert(data7.success === true, 'Parsed exact wording test text successfully');
+  const termItem = data7.extracted.prohibitedTerms.find(t => t.term.toLowerCase() === "the world's best skincare");
+  assert(!!termItem, 'Full wording with apostrophe extracted as "the world\'s best skincare"');
+  assert(termItem?.suggestedAlternative === '', 'Alternative is empty string when source provides no replacement');
+  assert(!data7.extracted.prohibitedTerms.some(t => t.term.toLowerCase().includes('marketing claims')), 'Heading "marketing claims" not extracted as prohibited term');
+  assert(!data7.extracted.prohibitedTerms.some(t => t.term.toLowerCase().includes('this phrase')), 'Instruction "this phrase as a product claim..." not extracted as prohibited term');
+  assert(data7.extracted.approvedTerms.some(a => a.term.toLowerCase() === 'bio-renewal complex'), 'Approved term correctly extracted');
+
   console.log('\n================================================================');
   console.log('PHASE 4 COMPLETE: ALL INGESTION TESTS PASSED!');
   console.log('================================================================');
@@ -134,3 +159,4 @@ run().catch(err => {
   console.error('Test error:', err);
   process.exit(1);
 });
+

@@ -12,10 +12,52 @@ import {
   AlertTriangle, 
   SlidersHorizontal,
   FileText,
-  Plus
+  Plus,
+  Award,
+  Upload,
+  Download,
+  Copy,
+  Check,
+  X
 } from 'lucide-react';
 import { analyzeDraftContent } from '@/lib/retrieval-engine';
 import { IssueSeverity, IssueType } from '@/types';
+
+const getBrandSamples = (brandName: string) => {
+  const lower = brandName.toLowerCase();
+  if (lower.includes('nuvia')) {
+    return [
+      {
+        id: 'nuvia-risky',
+        label: 'Risky Ad Copy',
+        title: 'Nuvia Skin - Risky Campaign Draft',
+        content: `Introducing the world's best skincare. Our miracle cure provides an instant face lift and permanently removes all wrinkles. Guaranteed acne-free skin in 24 hours that erases scars and cures eczema. It is 100% organic and completely chemical-free.`
+      },
+      {
+        id: 'nuvia-compliant',
+        label: 'Compliant Routine',
+        title: 'Nuvia Skin - Verified Daily Routine',
+        content: `Formulated with 5% niacinamide and 2% hyaluronic acid, this targeted treatment visibly smooths the appearance of fine lines and helps clarify blemish-prone skin. Clinical study protocol NUV-2025-01 demonstrated 94% improvement in skin hydration over 14 days under ISO 17025 certification.`
+      }
+    ];
+  }
+
+  // Default to EchoStream / Audio
+  return [
+    {
+      id: 'audio-risky',
+      label: 'Risky Ad Copy',
+      title: 'EchoStream Pro - Unaudited Ad Copy',
+      content: `Experience revolutionary acoustic clarity with our newest wireless audio headphones. Made entirely from recycled plastic, these headphones offer 75-hour continuous battery life with quick charging. We guarantee unbreakable build quality that outlasts any competitor. It's the most eco-friendly audio gear on the market today.`
+    },
+    {
+      id: 'audio-compliant',
+      label: 'Compliant Launch',
+      title: 'EchoStream Pro - Verified Product Announcement',
+      content: `Experience thoughtful acoustic engineering with our newest wireless headphones. Crafted with 80% certified post-consumer recycled plastic, these headphones provide up to 48 hours of tested battery life. Designed for drop resilience up to 2 meters with repairable modular components.`
+    }
+  ];
+};
 
 export default function DashboardPage() {
   const {
@@ -28,6 +70,7 @@ export default function DashboardPage() {
     updateDraftContent,
     updateDraftStatus,
     applyFindingFix,
+    applyAllFindingFixes,
     ignoreFinding,
     setDraftFindings,
     userRole,
@@ -43,6 +86,9 @@ export default function DashboardPage() {
   const [auditMessage, setAuditMessage] = useState<string | null>(null);
   const [isFallbackActive, setIsFallbackActive] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
+  const [copiedCert, setCopiedCert] = useState(false);
+  const [copiedCopy, setCopiedCopy] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'resolved'>('all');
@@ -140,6 +186,92 @@ export default function DashboardPage() {
       setActionFeedback(`Ignored issue: "${finding.quote}"`);
       setTimeout(() => setActionFeedback(null), 4500);
     }
+  };
+
+  const handleApplyAllFixes = () => {
+    if (!currentDraft) return;
+    const count = applyAllFindingFixes(currentDraft.id);
+    if (count > 0) {
+      setActionFeedback(`Applied ${count} safe brand-compliant replacements automatically!`);
+      setTimeout(() => setActionFeedback(null), 5000);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentDraft) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === 'string') {
+        updateDraftContent(currentDraft.id, text);
+        setActionFeedback(`Imported content from ${file.name}`);
+        setTimeout(() => setActionFeedback(null), 4000);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleLoadSample = (sample: { id: string; label: string; title: string; content: string }) => {
+    if (!currentDraft) return;
+    updateDraftContent(currentDraft.id, sample.content);
+    setActionFeedback(`Loaded sample draft: "${sample.label}"`);
+    setTimeout(() => setActionFeedback(null), 4000);
+  };
+
+  const generateCertificateMarkdown = () => {
+    if (!currentDraft) return '';
+    const now = new Date().toLocaleString();
+    const statusText = metrics.isCompliant ? 'APPROVED FOR PUBLICATION (CLEAN & COMPLIANT)' : 'PENDING REMEDIATION';
+    const citedSources = Array.from(
+      new Set(
+        currentDraft.findings
+          .flatMap(f => f.evidence?.map(e => `${e.title} — ${e.sourceDoc || 'Brand Guide'}${e.pageNumber ? ` (p.${e.pageNumber})` : ''}`) || [])
+          .filter(Boolean)
+      )
+    );
+
+    return `# Brand Sutra Compliance Clearance Certificate
+**Brand:** ${brand.name}
+**Draft Title:** ${currentDraft.title}
+**Status:** ${statusText}
+**Generated:** ${now}
+**Audited By:** Brand Sutra AI Governance Engine
+
+---
+
+## 1. Compliance Summary
+- **Overall Verdict:** ${metrics.isCompliant ? 'APPROVED FOR PUBLICATION' : 'NON-COMPLIANT'}
+- **Review Progress:** ${metrics.progressPercent}% (${metrics.resolved}/${metrics.total} issues reviewed)
+- **Active Copy Violations:** ${metrics.activeViolationsCount}
+- **Accepted Fixes:** ${metrics.accepted}
+
+---
+
+## 2. Ground-Truth Evidence Cited
+${citedSources.length > 0 ? citedSources.map(s => `- ${s}`).join('\n') : '- Official Brand Governance Rules & Verified Facts'}
+
+---
+
+## 3. Approved Final Copy
+\`\`\`text
+${currentDraft.content}
+\`\`\`
+`;
+  };
+
+  const handleDownloadCertificate = () => {
+    const markdown = generateCertificateMarkdown();
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(currentDraft?.title || 'Draft').replace(/[^a-zA-Z0-9_-]/g, '_')}_compliance_certificate.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleCommentSubmit = (e: React.FormEvent) => {
@@ -326,6 +458,34 @@ export default function DashboardPage() {
             <span>{isAuditing ? 'Auditing...' : 'Run Audit'}</span>
           </button>
 
+          {/* File text import */}
+          <label 
+            id="btn-import-draft-file"
+            title="Import text or markdown draft file"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#ededed] bg-[#1a1a1a] hover:bg-[#262626] border border-[#333333] rounded transition-colors cursor-pointer"
+          >
+            <Upload className="w-3 h-3 text-[#a3a3a3]" />
+            <span>Import</span>
+            <input 
+              type="file" 
+              accept=".txt,.md" 
+              className="hidden" 
+              onChange={handleFileUpload} 
+            />
+          </label>
+
+          {/* Export Certificate button */}
+          <button
+            id="btn-export-certificate"
+            type="button"
+            onClick={() => setShowCertificateModal(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#ededed] bg-[#1a1a1a] hover:bg-[#262626] border border-[#333333] rounded transition-colors"
+            title="Export official compliance clearance certificate"
+          >
+            <Award className="w-3.5 h-3.5 text-[#d4af37]" />
+            <span>Certificate</span>
+          </button>
+
           {/* Role-based status action */}
           {userRole === 'creator' && currentDraft.reviewStatus !== 'In Review' && currentDraft.reviewStatus !== 'Approved' && (
             <button
@@ -458,6 +618,24 @@ export default function DashboardPage() {
                 </button>
               </div>
             )}
+
+            {/* Quick Sample Draft Presets */}
+            <div className="flex items-center justify-between gap-2 pt-1 pb-1 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-[#8a8a8a] font-mono">Sample Drafts:</span>
+                {getBrandSamples(brand.name).map((sample) => (
+                  <button
+                    key={sample.id}
+                    type="button"
+                    onClick={() => handleLoadSample(sample)}
+                    className="px-2 py-0.5 text-[11px] font-medium bg-[#171717] hover:bg-[#222222] border border-[#2a2a2a] hover:border-[#444] text-[#d4d4d4] rounded transition-colors"
+                    title={`Load "${sample.title}"`}
+                  >
+                    {sample.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Textarea */}
             <textarea
@@ -605,6 +783,21 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* Batch Fix Action */}
+            {currentDraft.findings.filter(f => f.status === 'Pending' && Boolean(f.suggestedFix && f.suggestedFix.trim())).length > 0 && (
+              <div className="pt-2 border-t border-[#1f1f1f]">
+                <button
+                  id="btn-apply-all-fixes"
+                  type="button"
+                  onClick={handleApplyAllFixes}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold text-black bg-white hover:bg-[#d4d4d4] rounded transition-all shadow-sm"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-black" />
+                  <span>Apply All Safe Fixes ({currentDraft.findings.filter(f => f.status === 'Pending' && Boolean(f.suggestedFix && f.suggestedFix.trim())).length})</span>
+                </button>
+              </div>
+            )}
+
             {/* Filter Toolbar */}
             <div className="pt-2 border-t border-[#1f1f1f] space-y-2">
               <div className="flex items-center justify-between text-[11px] text-[#737373]">
@@ -748,6 +941,141 @@ export default function DashboardPage() {
         </div>
 
       </div>
+
+      {/* Compliance Clearance Certificate Modal */}
+      {showCertificateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#121212] border border-[#2a2a2a] rounded-xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[#222]">
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-[#d4af37]" />
+                <h3 className="text-base font-semibold text-white tracking-tight">Compliance Clearance Certificate</h3>
+              </div>
+              <button
+                onClick={() => setShowCertificateModal(false)}
+                className="text-[#737373] hover:text-white transition-colors p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto space-y-5 text-xs text-[#a3a3a3]">
+              <div className={`p-3.5 rounded-lg border flex items-center justify-between ${
+                metrics.isCompliant
+                  ? 'bg-emerald-950/30 border-emerald-800/50 text-emerald-300'
+                  : 'bg-amber-950/30 border-amber-800/50 text-amber-300'
+              }`}>
+                <div className="flex items-center gap-2.5">
+                  {metrics.isCompliant ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                  )}
+                  <div>
+                    <div className="font-semibold text-sm">
+                      {metrics.isCompliant ? 'APPROVED FOR PUBLICATION' : 'PENDING REMEDIATION'}
+                    </div>
+                    <div className="text-[11px] opacity-80 mt-0.5">
+                      {metrics.isCompliant
+                        ? 'All claims verified against official brand rules and trusted facts.'
+                        : `${metrics.activeViolationsCount} unresolved violation(s) remain in draft copy.`}
+                    </div>
+                  </div>
+                </div>
+                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-black/40 border border-white/10">
+                  {metrics.progressPercent}% REVIEWED
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="p-2.5 rounded bg-[#171717] border border-[#262626]">
+                  <div className="text-[10px] uppercase font-mono text-[#737373]">Brand</div>
+                  <div className="text-xs font-semibold text-white mt-0.5 truncate">{brand.name}</div>
+                </div>
+                <div className="p-2.5 rounded bg-[#171717] border border-[#262626]">
+                  <div className="text-[10px] uppercase font-mono text-[#737373]">Word Count</div>
+                  <div className="text-xs font-semibold text-white mt-0.5">{wordsCount} words</div>
+                </div>
+                <div className="p-2.5 rounded bg-[#171717] border border-[#262626]">
+                  <div className="text-[10px] uppercase font-mono text-[#737373]">Accepted Edits</div>
+                  <div className="text-xs font-semibold text-white mt-0.5">{metrics.accepted}</div>
+                </div>
+                <div className="p-2.5 rounded bg-[#171717] border border-[#262626]">
+                  <div className="text-[10px] uppercase font-mono text-[#737373]">Active Issues</div>
+                  <div className="text-xs font-semibold text-white mt-0.5">{metrics.activeViolationsCount}</div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-white">Current Clean Copy</div>
+                <div className="p-3 rounded bg-[#0a0a0a] border border-[#262626] text-[#e5e5e5] font-sans text-xs max-h-36 overflow-y-auto whitespace-pre-wrap leading-relaxed select-all">
+                  {currentDraft.content}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-white">Cited Ground-Truth Guidelines</div>
+                <div className="p-3 rounded bg-[#0a0a0a] border border-[#262626] text-[#8a8a8a] text-[11px] max-h-32 overflow-y-auto space-y-1">
+                  {currentDraft.findings.flatMap(f => f.evidence || []).length > 0 ? (
+                    Array.from(new Set(currentDraft.findings.flatMap(f => f.evidence || []).map(e => `${e.title} — ${e.sourceDoc || 'Official Brand Guide'}${e.pageNumber ? ` (p.${e.pageNumber})` : ''}`))).map((cite, idx) => (
+                      <div key={idx} className="flex items-start gap-1.5">
+                        <span className="text-[#525252]">•</span>
+                        <span>{cite}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div>Standard Brand Voice & Governance Rules</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-[#222] flex items-center justify-between gap-3 flex-wrap bg-[#101010]">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(generateCertificateMarkdown());
+                    setCopiedCert(true);
+                    setTimeout(() => setCopiedCert(false), 2500);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#1a1a1a] hover:bg-[#262626] border border-[#333] text-[#d4d4d4] rounded transition-colors"
+                >
+                  {copiedCert ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCert ? 'Copied Markdown!' : 'Copy Certificate'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(currentDraft.content);
+                    setCopiedCopy(true);
+                    setTimeout(() => setCopiedCopy(false), 2500);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#1a1a1a] hover:bg-[#262626] border border-[#333] text-[#d4d4d4] rounded transition-colors"
+                >
+                  {copiedCopy ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCopy ? 'Copied Copy!' : 'Copy Clean Text'}</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadCertificate}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-black bg-white hover:bg-[#d4d4d4] rounded transition-colors shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download (.md)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
