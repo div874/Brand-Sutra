@@ -20,7 +20,7 @@ import type { BrandProfile } from '@/types';
 
 export default function HomePage() {
   const router = useRouter();
-  const { brands, selectedBrandId, selectBrand, createBrand, deleteBrand, drafts } = useApp();
+  const { brands, selectedBrandId, selectBrand, createBrand, deleteBrand, restorePresetBrand, drafts } = useApp();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [brandToDelete, setBrandToDelete] = useState<BrandProfile | null>(null);
@@ -28,6 +28,8 @@ export default function HomePage() {
   const [newBrandDesc, setNewBrandDesc] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  const hasNuvia = brands.some(b => b.name.toLowerCase().includes('nuvia') || b.id === 'brand-nuvia-skin');
 
   const handleSelectBrand = (brandId: string) => {
     selectBrand(brandId);
@@ -81,7 +83,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="pt-2 flex items-center justify-center gap-3">
+        <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
           <button
             id="btn-create-brand"
             type="button"
@@ -91,6 +93,21 @@ export default function HomePage() {
             <Plus className="w-4 h-4 text-black" />
             <span>Create New Brand</span>
           </button>
+
+          {!hasNuvia && (
+            <button
+              id="btn-restore-nuvia-hero"
+              type="button"
+              onClick={() => {
+                restorePresetBrand('nuvia');
+                router.push('/dashboard');
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#141414] border border-emerald-500/40 text-emerald-300 text-xs sm:text-sm font-medium hover:bg-emerald-950/30 transition-all shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Add Nuvia Skin Preset</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -230,6 +247,33 @@ export default function HomePage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Preset Option */}
+            {!hasNuvia && (
+              <div className="p-3 rounded-lg bg-[#141414] border border-emerald-500/20 text-xs flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-medium text-emerald-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Preset: Nuvia Skin</span>
+                  </div>
+                  <p className="text-[11px] text-[#8a8a8a] mt-0.5">
+                    Clinical skincare workspace with 14 regulatory rules & facts.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  id="btn-modal-add-nuvia"
+                  onClick={() => {
+                    restorePresetBrand('nuvia');
+                    setIsModalOpen(false);
+                    router.push('/dashboard');
+                  }}
+                  className="shrink-0 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-all shadow-sm"
+                >
+                  Add Preset
+                </button>
+              </div>
+            )}
 
             {/* Form */}
             <form onSubmit={handleCreateSubmit} className="space-y-4">

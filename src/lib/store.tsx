@@ -17,7 +17,10 @@ import {
 } from '@/types';
 import { 
   INITIAL_BRAND_PROFILE, 
+  NUVIA_BRAND_PROFILE,
+  INITIAL_BRANDS,
   INITIAL_DRAFTS, 
+  NUVIA_DRAFTS,
   INITIAL_AUDIT_LOGS, 
   INITIAL_COMMENTS,
   INITIAL_APPROVED_EDITS
@@ -71,6 +74,7 @@ interface AppContextType {
   supabaseStatus: SupabaseSyncStatus;
   refreshSupabaseStatus: () => Promise<SupabaseSyncStatus>;
   syncToCloud: () => Promise<{ success: boolean; message: string }>;
+  restorePresetBrand: (preset: 'nuvia' | 'echostream') => BrandProfile;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -88,7 +92,7 @@ const STORAGE_KEYS = {
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [brands, setBrands] = useState<BrandProfile[]>(() => [JSON.parse(JSON.stringify(INITIAL_BRAND_PROFILE))]);
+  const [brands, setBrands] = useState<BrandProfile[]>(() => JSON.parse(JSON.stringify(INITIAL_BRANDS)));
   const [selectedBrandId, setSelectedBrandId] = useState<string>(INITIAL_BRAND_PROFILE.id);
   const [allDrafts, setAllDrafts] = useState<Draft[]>(() => JSON.parse(JSON.stringify(INITIAL_DRAFTS)));
   const [currentDraftId, setCurrentDraftId] = useState<string>(INITIAL_DRAFTS[0].id);
@@ -232,16 +236,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Ensure EchoStream base brand is always present
+      // Ensure EchoStream and Nuvia Skin baseline brands are always present
       if (!loadedBrands.some(b => b.id === INITIAL_BRAND_PROFILE.id || b.name.toLowerCase() === 'echostream')) {
         loadedBrands.unshift(JSON.parse(JSON.stringify(INITIAL_BRAND_PROFILE)));
       }
+      if (!loadedBrands.some(b => b.id === NUVIA_BRAND_PROFILE.id || b.name.toLowerCase().includes('nuvia'))) {
+        loadedBrands.push(JSON.parse(JSON.stringify(NUVIA_BRAND_PROFILE)));
+      }
 
-      // For EchoStream brand, ensure baseline prohibited terms are present
+      // For baseline brands, ensure baseline prohibited terms are present
       loadedBrands = loadedBrands.map(b => {
         if (b.id === INITIAL_BRAND_PROFILE.id || b.name.toLowerCase() === 'echostream') {
           const existingTerms = new Set((b.prohibitedTerms || []).map(t => t.term.toLowerCase().trim()));
           const missingBaseline = INITIAL_BRAND_PROFILE.prohibitedTerms.filter(t => !existingTerms.has(t.term.toLowerCase().trim()));
+          if (missingBaseline.length > 0) {
+            return { ...b, prohibitedTerms: [...(b.prohibitedTerms || []), ...missingBaseline] };
+          }
+        }
+        if (b.id === NUVIA_BRAND_PROFILE.id || b.name.toLowerCase().includes('nuvia')) {
+          const existingTerms = new Set((b.prohibitedTerms || []).map(t => t.term.toLowerCase().trim()));
+          const missingBaseline = NUVIA_BRAND_PROFILE.prohibitedTerms.filter(t => !existingTerms.has(t.term.toLowerCase().trim()));
           if (missingBaseline.length > 0) {
             return { ...b, prohibitedTerms: [...(b.prohibitedTerms || []), ...missingBaseline] };
           }
@@ -261,25 +275,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Drafts
       const savedDrafts = localStorage.getItem(STORAGE_KEYS.DRAFTS);
       if (savedDrafts) {
-        const parsedDrafts = JSON.parse(savedDrafts) as Draft[];
-        const cleanedDrafts = parsedDrafts.map(d => {
-          const seen = new Set<string>();
-          const cleanedFindings = (d.findings || []).filter(f => {
-            const key = `${f.quote?.toLowerCase().trim()}:${f.issueType}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            if (f.status === 'Pending' && d.content && !d.content.toLowerCase().includes((f.quote || '').toLowerCase().trim())) {
-              return false;
-            }
-            return true;
+        try {
+          const parsedDrafts = JSON.parse(savedDrafts) as Draft[];
+          const hasNuviaDrafts = parsedDrafts.some(d => d.brandId === NUVIA_BRAND_PROFILE.id);
+          const combinedDrafts = hasNuviaDrafts ? parsedDrafts : [...parsedDrafts, ...JSON.parse(JSON.stringify(NUVIA_DRAFTS))];
+          const cleanedDrafts = combinedDrafts.map(d => {
+            const seen = new Set<string>();
+            const cleanedFindings = (d.findings || []).filter((f: Finding) => {
+              const key = `${f.quote?.toLowerCase().trim()}:${f.issueType}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              if (f.status === 'Pending' && d.content && !d.content.toLowerCase().includes((f.quote || '').toLowerCase().trim())) {
+                return false;
+              }
+              return true;
+            });
+            return { 
+              ...d, 
+              brandId: d.brandId || INITIAL_BRAND_PROFILE.id,
+              findings: cleanedFindings 
+            };
           });
-          return { 
-            ...d, 
-            brandId: d.brandId || INITIAL_BRAND_PROFILE.id,
-            findings: cleanedFindings 
-          };
-        });
-        setAllDrafts(cleanedDrafts);
+          setAllDrafts(cleanedDrafts);
+        } catch {}
       }
 
       const savedCurr = localStorage.getItem(STORAGE_KEYS.CURRENT_DRAFT);
@@ -409,6 +427,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     return true;
+  };
+
+  const restorePresetBrand = (preset: 'nuvia' | 'echostream'): BrandProfile => {
+    const targetProfile = preset === 'nuvia' ? NUVIA_BRAND_PROFILE : INITIAL_BRAND_PROFILE;
+    const targetDrafts = preset === 'nuvia' ? NUVIA_DRAFTS : INITIAL_DRAFTS.filter(d => d.brandId === INITIAL_BRAND_PROFILE.id);
+
+    setBrands(prev => {
+      const exists = prev.some(b => b.id === targetProfile.id || b.name.toLowerCase() === targetProfile.name.toLowerCase());
+      if (exists) {
+        return prev.map(b => (b.id === targetProfile.id || b.name.toLowerCase() === targetProfile.name.toLowerCase()) ? JSON.parse(JSON.stringify(targetProfile)) : b);
+      }
+      return [...prev, JSON.parse(JSON.stringify(targetProfile))];
+    });
+
+    setAllDrafts(prev => {
+      const existingIds = new Set(prev.map(d => d.id));
+      const newDrafts = targetDrafts.filter(d => !existingIds.has(d.id));
+      return [...prev, ...JSON.parse(JSON.stringify(newDrafts))];
+    });
+
+    setSelectedBrandId(targetProfile.id);
+    if (targetDrafts.length > 0) {
+      setCurrentDraftId(targetDrafts[0].id);
+    }
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.SELECTED_BRAND_ID, targetProfile.id);
+    } catch {}
+
+    syncBrandToSupabase(targetProfile).catch(() => {});
+    return targetProfile;
   };
 
   const importRules = (newRules: {
@@ -776,7 +825,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.clear();
     } catch {}
-    setBrands([JSON.parse(JSON.stringify(INITIAL_BRAND_PROFILE))]);
+    setBrands(JSON.parse(JSON.stringify(INITIAL_BRANDS)));
     setSelectedBrandId(INITIAL_BRAND_PROFILE.id);
     setAllDrafts(JSON.parse(JSON.stringify(INITIAL_DRAFTS)));
     setCurrentDraftId(INITIAL_DRAFTS[0].id);
@@ -821,7 +870,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         resetToDefaults,
         supabaseStatus,
         refreshSupabaseStatus,
-        syncToCloud
+        syncToCloud,
+        restorePresetBrand
       }}
     >
       {children}

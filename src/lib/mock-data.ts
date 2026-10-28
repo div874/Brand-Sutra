@@ -166,6 +166,438 @@ export const INITIAL_BRAND_PROFILE: BrandProfile = {
   updatedAt: '2026-02-15T12:00:00.000Z'
 };
 
+export const NUVIA_BRAND_PROFILE: BrandProfile = {
+  id: 'brand-nuvia-skin',
+  name: 'Nuvia Skin',
+  tagline: 'Clinically Transparent Skincare.',
+  description: 'A clinical dermatological skincare brand dedicated to transparent ingredient concentrations, ISO-certified clinical trials, and responsible claim compliance.',
+  voiceSummary: 'Dermatological Authority — Grounded, scientific, and empathetic. We avoid sensationalism, unverified cosmetic hyperbole, and medical disease treatment claims.',
+  toneGuidelines: [
+    {
+      attribute: 'Dermatological Authority',
+      description: 'State exact active ingredient concentrations and verified clinical metrics. Avoid sensationalism or elixir rhetoric.',
+      doExample: 'Formulated with 5% niacinamide and 2% hyaluronic acid.',
+      dontExample: 'A magical elixir that erases all your skin flaws overnight.'
+    },
+    {
+      attribute: 'Plain Language & Respectful',
+      description: 'Use clear, accessible language without artificial urgency, fear-mongering, or pressure tactics.',
+      doExample: 'Designed to fit into your daily skincare routine.',
+      dontExample: 'Buy now before your wrinkles become permanent.'
+    },
+    {
+      attribute: 'Measured Claims',
+      description: 'Use descriptive, observable efficacy statements rather than absolute superlatives or permanent guarantees.',
+      doExample: 'Visibly smooths the appearance of fine lines and helps clarify blemish-prone skin.',
+      dontExample: "The world's best skincare miracle cure."
+    }
+  ],
+  prohibitedTerms: [
+    {
+      id: 'nuvia-term-1',
+      term: "the world's best skincare",
+      reason: 'Absolute superlatives cannot be clinically substantiated and violate advertising fair claim standards.',
+      suggestedAlternative: 'skincare designed with simplicity in mind',
+      severity: 'high'
+    },
+    {
+      id: 'nuvia-term-2',
+      term: 'miracle cure',
+      reason: 'Cosmetic products cannot claim miraculous or medicinal curative properties.',
+      suggestedAlternative: 'targeted treatment',
+      severity: 'high'
+    },
+    {
+      id: 'nuvia-term-3',
+      term: 'permanent wrinkle removal',
+      reason: 'Cosmetics cannot claim permanent anatomical or structural modification.',
+      suggestedAlternative: 'visibly smooths the appearance of fine lines',
+      severity: 'high'
+    },
+    {
+      id: 'nuvia-term-4',
+      term: '100% organic',
+      reason: 'Overbroad organic claim requires third-party organic certification attribution.',
+      suggestedAlternative: 'crafted with certified organic botanicals',
+      severity: 'medium'
+    },
+    {
+      id: 'nuvia-term-5',
+      term: 'instant face lift',
+      reason: 'Comparison to invasive surgical medical procedures is prohibited by cosmetic labeling regulations.',
+      suggestedAlternative: 'firming and revitalizing treatment',
+      severity: 'high'
+    },
+    {
+      id: 'nuvia-term-6',
+      term: 'treats acne',
+      reason: 'Disease treatment claim classified as an unapproved drug claim under cosmetic regulations.',
+      suggestedAlternative: 'helps clarify blemish-prone skin',
+      severity: 'high'
+    },
+    {
+      id: 'nuvia-term-7',
+      term: 'erases scars',
+      reason: 'Cosmetic formulas cannot claim permanent scar tissue elimination.',
+      suggestedAlternative: 'visibly improves skin texture and tone',
+      severity: 'high'
+    },
+    {
+      id: 'nuvia-term-8',
+      term: 'cure eczema',
+      reason: 'Eczema is a medical dermatological condition requiring pharmaceutical treatment claims.',
+      suggestedAlternative: 'soothes dry, sensitive skin',
+      severity: 'high'
+    },
+    {
+      id: 'nuvia-term-9',
+      term: 'guaranteed acne-free skin',
+      reason: 'Unlawful outcome guarantee lacking clinical individual trial variance disclaimer.',
+      suggestedAlternative: 'designed to fit into your daily skincare routine',
+      severity: 'high'
+    },
+    {
+      id: 'nuvia-term-10',
+      term: '100% safe for everyone',
+      reason: 'Absolute safety claims violate allergen disclosure and patch test standards.',
+      suggestedAlternative: 'review the ingredient list to decide whether the product suits your needs',
+      severity: 'high'
+    },
+    {
+      id: 'nuvia-term-11',
+      term: 'instantly removes all wrinkles',
+      reason: 'Overstated immediate structural transformation claim prohibited under FTC/FDA rules.',
+      suggestedAlternative: 'learn more about the product and its intended use',
+      severity: 'high'
+    },
+    {
+      id: 'nuvia-term-12',
+      term: 'chemical-free',
+      reason: 'Scientifically false and misleading advertising claim; all cosmetic matter has chemical composition.',
+      suggestedAlternative: 'see the ingredient list',
+      severity: 'medium'
+    },
+    {
+      id: 'nuvia-term-13',
+      term: 'flawless skin forever',
+      reason: 'Unrealistic, perpetual perfection claim contrary to our grounded brand tone.',
+      suggestedAlternative: 'build a skincare routine that works for you',
+      severity: 'medium'
+    },
+    {
+      id: 'nuvia-term-14',
+      term: 'clinically proven',
+      reason: 'Requires citing the specific clinical study protocol ID (e.g., Protocol NUV-2025-01).',
+      suggestedAlternative: 'see clinical study protocol NUV-2025-01',
+      severity: 'medium'
+    }
+  ],
+  approvedTerms: [
+    {
+      id: 'nuvia-appr-1',
+      term: 'Bio-Renewal Complex',
+      preferredUsage: 'Permitted for the proprietary fermented peptide blend.',
+      category: 'Proprietary Formulations'
+    },
+    {
+      id: 'nuvia-appr-2',
+      term: 'dermatologist-tested',
+      preferredUsage: 'Permitted for all formulas tested under clinical Protocol NUV-2025.',
+      category: 'Clinical Benchmarks'
+    },
+    {
+      id: 'nuvia-appr-3',
+      term: 'daily skincare routine',
+      preferredUsage: 'Recommended phrasing for incorporating treatments into customer habits.',
+      category: 'Usage Guidance'
+    },
+    {
+      id: 'nuvia-appr-4',
+      term: 'visibly smooths the appearance of fine lines',
+      preferredUsage: 'Approved phrasing for peptide and hyaluronic serum efficacy.',
+      category: 'Efficacy Claims'
+    },
+    {
+      id: 'nuvia-appr-5',
+      term: 'helps clarify blemish-prone skin',
+      preferredUsage: 'Approved cosmetic phrasing for niacinamide clarifying formulas.',
+      category: 'Efficacy Claims'
+    },
+    {
+      id: 'nuvia-appr-6',
+      term: 'individual experiences may vary',
+      preferredUsage: 'Mandatory disclaimer for customer testimonials and study summaries.',
+      category: 'Disclaimers'
+    }
+  ],
+  trustedFacts: [
+    {
+      id: 'nuvia-fact-1',
+      topic: 'Clinical Hydration Benchmark',
+      claimOrStat: 'Clinical study protocol NUV-2025-01 demonstrated 94% improvement in skin hydration over 14 days under ISO 17025 certification.',
+      source: 'ISO 17025 Clinical Study Protocol NUV-2025-01',
+      sourceUrl: 'https://clinical.nuviaskin.com/nuv-2025-01',
+      verifiedDate: '2025-02-14'
+    },
+    {
+      id: 'nuvia-fact-2',
+      topic: 'Packaging Certification',
+      claimOrStat: 'Outer packaging is 100% post-consumer recycled paperboard certified under FSC standards.',
+      source: 'Nuvia Skin Packaging Audit Certificate #FSC-2025-C88',
+      sourceUrl: 'https://standards.nuviaskin.com/fsc-cert',
+      verifiedDate: '2025-01-20'
+    },
+    {
+      id: 'nuvia-fact-3',
+      topic: 'Active Formulation Concentrations',
+      claimOrStat: 'Formulated with 5% niacinamide and 2% multi-molecular hyaluronic acid.',
+      source: 'Nuvia Skin Formulation Dossier v4.2',
+      sourceUrl: 'https://clinical.nuviaskin.com/dossier-42',
+      verifiedDate: '2025-01-10'
+    }
+  ],
+  createdAt: '2026-01-15T00:00:00.000Z',
+  updatedAt: '2026-02-20T12:00:00.000Z'
+};
+
+export const INITIAL_BRANDS: BrandProfile[] = [
+  INITIAL_BRAND_PROFILE,
+  NUVIA_BRAND_PROFILE
+];
+
+export const NUVIA_DRAFTS: Draft[] = [
+  {
+    id: 'draft-nuvia-1',
+    brandId: 'brand-nuvia-skin',
+    title: 'Nuvia Skin Launch Campaign',
+    channel: 'Social & Paid Ad Campaign',
+    targetAudience: 'Skincare consumers seeking dermatological solutions',
+    creatorId: 'user-creator-1',
+    creatorName: 'Aarav Sharma (Copywriter)',
+    reviewerId: 'user-reviewer-1',
+    reviewerName: 'Divyansh Chandra (Brand Lead)',
+    reviewStatus: 'In Review',
+    version: 1,
+    createdAt: '2026-10-26T10:00:00.000Z',
+    updatedAt: '2026-10-26T11:30:00.000Z',
+    content: `Introducing the world's best skincare. Our miracle cure provides an instant face lift and permanently removes all wrinkles.
+
+Guaranteed acne-free skin in 24 hours that erases scars and cures eczema. It is 100% organic and completely chemical-free. Formulated with our proprietary Bio-Renewal Complex, you will achieve flawless skin forever.`,
+    findings: [
+      {
+        id: 'nuvia-find-1',
+        draftId: 'draft-nuvia-1',
+        issueType: 'Terminology',
+        severity: 'high',
+        quote: "the world's best skincare",
+        startIndex: 12,
+        endIndex: 38,
+        explanation: 'Absolute superlatives cannot be clinically substantiated and violate advertising fair claim standards.',
+        sourceLink: 'Nuvia Regulatory Rule #1',
+        ruleId: 'nuvia-term-1',
+        suggestedFix: 'skincare designed with simplicity in mind',
+        status: 'Pending',
+        detectedBy: 'deterministic',
+        createdAt: '2026-10-26T11:30:00.000Z',
+        evidence: [
+          {
+            id: 'cite-rule-nuvia-term-1',
+            type: 'rule',
+            title: 'Prohibited Term: "the world\'s best skincare"',
+            sourceDoc: 'Nuvia Skin Brand Guidelines 2026',
+            snippet: 'Never say "the world\'s best skincare" because absolute superlatives cannot be clinically substantiated.',
+            relevanceScore: 0.99,
+            reasoning: 'Matches banned absolute claim in brand guidelines.'
+          }
+        ]
+      },
+      {
+        id: 'nuvia-find-2',
+        draftId: 'draft-nuvia-1',
+        issueType: 'Terminology',
+        severity: 'high',
+        quote: 'miracle cure',
+        startIndex: 44,
+        endIndex: 56,
+        explanation: 'Cosmetic products cannot claim miraculous or medicinal curative properties.',
+        sourceLink: 'Nuvia Regulatory Rule #2',
+        ruleId: 'nuvia-term-2',
+        suggestedFix: 'targeted treatment',
+        status: 'Pending',
+        detectedBy: 'deterministic',
+        createdAt: '2026-10-26T11:30:00.000Z',
+        evidence: [
+          {
+            id: 'cite-rule-nuvia-term-2',
+            type: 'rule',
+            title: 'Prohibited Term: "miracle cure"',
+            sourceDoc: 'Nuvia Skin Brand Guidelines 2026',
+            snippet: 'Do not use "miracle cure", use "targeted treatment" instead.',
+            relevanceScore: 0.99,
+            reasoning: 'Direct guideline prohibition on curative medical language.'
+          }
+        ]
+      },
+      {
+        id: 'nuvia-find-3',
+        draftId: 'draft-nuvia-1',
+        issueType: 'Terminology',
+        severity: 'high',
+        quote: 'instant face lift',
+        startIndex: 69,
+        endIndex: 86,
+        explanation: 'Comparison to invasive surgical medical procedures is prohibited by cosmetic labeling regulations.',
+        sourceLink: 'Nuvia Regulatory Rule #5',
+        ruleId: 'nuvia-term-5',
+        suggestedFix: 'firming and revitalizing treatment',
+        status: 'Pending',
+        detectedBy: 'deterministic',
+        createdAt: '2026-10-26T11:30:00.000Z',
+        evidence: [
+          {
+            id: 'cite-rule-nuvia-term-5',
+            type: 'rule',
+            title: 'Prohibited Term: "instant face lift"',
+            sourceDoc: 'Nuvia Skin Brand Guidelines 2026',
+            snippet: 'Comparison to surgical medical procedures is prohibited.',
+            relevanceScore: 0.98,
+            reasoning: 'Prohibited claim comparing cosmetic serum to surgery.'
+          }
+        ]
+      },
+      {
+        id: 'nuvia-find-4',
+        draftId: 'draft-nuvia-1',
+        issueType: 'Terminology',
+        severity: 'high',
+        quote: 'permanently removes all wrinkles',
+        startIndex: 91,
+        endIndex: 123,
+        explanation: 'Cosmetics cannot claim permanent anatomical or structural modification.',
+        sourceLink: 'Nuvia Regulatory Rule #3',
+        ruleId: 'nuvia-term-3',
+        suggestedFix: 'visibly smooths the appearance of fine lines',
+        status: 'Pending',
+        detectedBy: 'deterministic',
+        createdAt: '2026-10-26T11:30:00.000Z',
+        evidence: [
+          {
+            id: 'cite-rule-nuvia-term-3',
+            type: 'rule',
+            title: 'Prohibited Phrase: "permanent wrinkle removal"',
+            sourceDoc: 'Nuvia Skin Brand Guidelines 2026',
+            snippet: 'Reason: Cosmetic products cannot claim permanent structural alteration. Alternative: "visibly smooths the appearance of fine lines"',
+            relevanceScore: 0.99,
+            reasoning: 'Permanent alteration claims violate FDA cosmetics standards.'
+          }
+        ]
+      },
+      {
+        id: 'nuvia-find-5',
+        draftId: 'draft-nuvia-1',
+        issueType: 'Terminology',
+        severity: 'high',
+        quote: 'cures eczema',
+        startIndex: 185,
+        endIndex: 197,
+        explanation: 'Eczema is a medical dermatological disease. Cosmetics may not claim to cure or treat diseases.',
+        sourceLink: 'Nuvia Medical Claims Policy',
+        ruleId: 'nuvia-term-8',
+        suggestedFix: 'soothes dry, sensitive skin',
+        status: 'Pending',
+        detectedBy: 'deterministic',
+        createdAt: '2026-10-26T11:30:00.000Z',
+        evidence: [
+          {
+            id: 'cite-rule-nuvia-term-8',
+            type: 'rule',
+            title: 'Prohibited Term: "cure eczema"',
+            sourceDoc: 'Nuvia Skin Brand Guidelines 2026',
+            snippet: 'Never say "cure eczema" -> Alternative: "soothes dry, sensitive skin"',
+            relevanceScore: 0.99,
+            reasoning: 'Disease claim classification.'
+          }
+        ]
+      },
+      {
+        id: 'nuvia-find-6',
+        draftId: 'draft-nuvia-1',
+        issueType: 'Terminology',
+        severity: 'medium',
+        quote: '100% organic',
+        startIndex: 205,
+        endIndex: 217,
+        explanation: 'Overbroad organic claim requires specific third-party organic certification attribution.',
+        sourceLink: 'Nuvia Regulatory Rule #4',
+        ruleId: 'nuvia-term-4',
+        suggestedFix: 'crafted with certified organic botanicals',
+        status: 'Pending',
+        detectedBy: 'deterministic',
+        createdAt: '2026-10-26T11:30:00.000Z',
+        evidence: [
+          {
+            id: 'cite-rule-nuvia-term-4',
+            type: 'rule',
+            title: 'Banned Term: "100% organic"',
+            sourceDoc: 'Nuvia Skin Brand Guidelines 2026',
+            snippet: 'Banned Term: "100% organic" -> use "crafted with certified organic botanicals" instead.',
+            relevanceScore: 0.98,
+            reasoning: 'Cosmetics organic claim compliance.'
+          }
+        ]
+      },
+      {
+        id: 'nuvia-find-7',
+        draftId: 'draft-nuvia-1',
+        issueType: 'Terminology',
+        severity: 'medium',
+        quote: 'chemical-free',
+        startIndex: 233,
+        endIndex: 246,
+        explanation: 'Scientifically inaccurate claim; all cosmetic matter has chemical composition.',
+        sourceLink: 'Nuvia Regulatory Rule #12',
+        ruleId: 'nuvia-term-12',
+        suggestedFix: 'see the ingredient list',
+        status: 'Pending',
+        detectedBy: 'deterministic',
+        createdAt: '2026-10-26T11:30:00.000Z',
+        evidence: [
+          {
+            id: 'cite-rule-nuvia-term-12',
+            type: 'rule',
+            title: 'Prohibited Term: "chemical-free"',
+            sourceDoc: 'Nuvia Skin Rules and Alternatives v2',
+            snippet: 'Prohibited: chemical-free -> Approved alternative: see the ingredient list',
+            relevanceScore: 0.97,
+            reasoning: 'Inaccurate scientific description.'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'draft-nuvia-2',
+    brandId: 'brand-nuvia-skin',
+    title: 'Nuvia Skin Verified Daily Routine',
+    channel: 'Educational Newsletter & Website',
+    targetAudience: 'Educated skincare customers',
+    creatorId: 'user-creator-2',
+    creatorName: 'Neha Patel (Product Marketing)',
+    reviewerId: 'user-reviewer-1',
+    reviewerName: 'Divyansh Chandra (Brand Lead)',
+    reviewStatus: 'Approved',
+    version: 2,
+    createdAt: '2026-10-24T09:00:00.000Z',
+    updatedAt: '2026-10-25T14:00:00.000Z',
+    content: `Formulated with 5% niacinamide and 2% hyaluronic acid, this targeted treatment visibly smooths the appearance of fine lines and helps clarify blemish-prone skin.
+
+Clinical study protocol NUV-2025-01 demonstrated 94% improvement in skin hydration over 14 days under ISO 17025 certification. Outer packaging is 100% post-consumer recycled paperboard certified under FSC standards.
+
+Designed to fit comfortably into your daily skincare routine. Individual experiences may vary.`,
+    findings: []
+  }
+];
+
 export const INITIAL_DRAFTS: Draft[] = [
   {
     id: 'draft-demo-1',
@@ -394,7 +826,8 @@ With our Modular Architecture, every pair of EcoSutra headphones lets you swap o
 
 Sound tailored to your life, built for the long haul.`,
     findings: []
-  }
+  },
+  ...NUVIA_DRAFTS
 ];
 
 export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
